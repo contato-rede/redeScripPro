@@ -2,12 +2,13 @@ import React, { useRef, useState, useEffect } from 'react';
 import { db } from '../db';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { Trash2, Download, Upload, RefreshCcw, X, ShieldAlert, FolderOpen, HardDrive, Smartphone } from 'lucide-react';
+import { Trash2, Download, Upload, RefreshCcw, X, ShieldAlert, FolderOpen, HardDrive, Smartphone, Sparkles } from 'lucide-react';
 import { motion } from 'motion/react';
 import { DEFAULT_QUESTIONS, INITIAL_STATUSES } from '../constants';
 import { syncToLocalExcel } from '../lib/sync';
 import { cn } from '../lib/utils';
 import { AppSettings } from '../types';
+import { GoogleGenAI } from "@google/genai";
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -18,6 +19,72 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isGeneratingIcon, setIsGeneratingIcon] = useState(false);
+
+  const generateAndSetIcon = async () => {
+    // Check for API key selection if using advanced models or if previous attempt failed with permission error
+    if (typeof window !== 'undefined' && (window as any).aistudio) {
+      const hasKey = await (window as any).aistudio.hasSelectedApiKey();
+      if (!hasKey) {
+        toast.info('Para gerar imagens com IA de alta qualidade, você precisa selecionar uma chave de API paga.', {
+          action: {
+            label: 'Selecionar Chave',
+            onClick: () => (window as any).aistudio.openSelectKey()
+          },
+          duration: 5000
+        });
+        return;
+      }
+    }
+
+    setIsGeneratingIcon(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || process.env.GEMINI_API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image', // Using 2.5 for better compatibility
+        contents: {
+          parts: [
+            {
+              text: 'A modern, minimalist app icon for a sales management software called "Rede Script Pro". The icon should feature a stylized document or script combined with a dashboard graph element. Use a vibrant indigo and white color palette. Professional, clean, high-quality, 512x512, centered on a solid background, suitable for a desktop icon.',
+            },
+          ],
+        },
+      });
+
+      let iconUrl = '';
+      for (const part of response.candidates[0].content.parts) {
+        if (part.inlineData) {
+          iconUrl = `data:image/png;base64,${part.inlineData.data}`;
+          break;
+        }
+      }
+
+      if (iconUrl) {
+        // Update manifest links in index.html dynamically
+        const manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement;
+        if (manifestLink) {
+          // In a real app we'd save this to a file, but for now we'll just show it
+          toast.success('Ícone gerado com sucesso! (Visualização disponível abaixo)');
+          // Store in local storage for persistence in this session
+          localStorage.setItem('rspro_custom_icon', iconUrl);
+        }
+      }
+    } catch (error: any) {
+      const errorMessage = error?.message || '';
+      if (errorMessage.includes('Requested entity was not found') || errorMessage.includes('PERMISSION_DENIED')) {
+        toast.error('Erro de permissão. Por favor, selecione sua chave de API novamente.', {
+          action: {
+            label: 'Selecionar Chave',
+            onClick: () => (window as any).aistudio.openSelectKey()
+          }
+        });
+      } else {
+        toast.error('Erro ao gerar ícone: ' + errorMessage);
+      }
+    } finally {
+      setIsGeneratingIcon(false);
+    }
+  };
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: any) => {
@@ -200,26 +267,91 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
         <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto">
           {/* PWA Section */}
-          {deferredPrompt && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-semibold text-indigo-500 uppercase tracking-wider flex items-center gap-2">
-                <Smartphone size={16} />
-                Aplicativo Instalável
-              </h3>
-              <button 
-                onClick={installApp}
-                className="w-full flex items-center gap-3 p-3 text-left border border-indigo-100 rounded-xl bg-indigo-50/50 hover:bg-indigo-50 transition-all group"
-              >
-                <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                  <Download size={18} />
+          <div className="space-y-3">
+            <h3 className="text-sm font-semibold text-indigo-500 uppercase tracking-wider flex items-center gap-2">
+              <Smartphone size={16} />
+              Aplicativo Instalável (PWA)
+            </h3>
+            
+            <div className="p-4 border border-indigo-100 rounded-xl bg-indigo-50/30 space-y-4">
+              {deferredPrompt && (
+                <button 
+                  onClick={installApp}
+                  className="w-full flex items-center gap-3 p-3 text-left border border-indigo-200 rounded-xl bg-white hover:bg-indigo-50 transition-all group shadow-sm"
+                >
+                  <div className="p-2 bg-indigo-100 rounded-lg text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                    <Download size={18} />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-slate-900">Instalar no Computador</div>
+                    <div className="text-xs text-slate-500">Use o sistema como um app nativo</div>
+                  </div>
+                </button>
+              )}
+
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-bold text-slate-600 uppercase">Personalizar Ícone</div>
+                  {localStorage.getItem('rspro_custom_icon') && (
+                    <button 
+                      onClick={() => {
+                        localStorage.removeItem('rspro_custom_icon');
+                        window.location.reload();
+                      }}
+                      className="text-[10px] text-red-500 hover:underline"
+                    >
+                      Resetar Ícone
+                    </button>
+                  )}
                 </div>
-                <div>
-                  <div className="text-sm font-semibold text-slate-900">Instalar no Computador</div>
-                  <div className="text-xs text-slate-500">Use o sistema como um app nativo, sem as barras do navegador</div>
+                
+                <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 rounded-2xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center shadow-inner">
+                    <img 
+                      src={localStorage.getItem('rspro_custom_icon') || 'https://picsum.photos/seed/rspro/192/192'} 
+                      alt="App Icon" 
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={generateAndSetIcon}
+                        disabled={isGeneratingIcon}
+                        className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-sm"
+                      >
+                        {isGeneratingIcon ? (
+                          <RefreshCcw size={14} className="animate-spin" />
+                        ) : (
+                          <Sparkles size={14} />
+                        )}
+                        {isGeneratingIcon ? 'Gerando...' : 'Gerar com IA'}
+                      </button>
+                      
+                      {localStorage.getItem('rspro_custom_icon') && (
+                        <button 
+                          onClick={() => {
+                            const link = document.createElement('a');
+                            link.href = localStorage.getItem('rspro_custom_icon')!;
+                            link.download = 'RedeScriptPro_Icon.png';
+                            link.click();
+                          }}
+                          className="p-2 bg-slate-100 text-slate-600 rounded-lg hover:bg-slate-200 transition-all"
+                          title="Baixar Ícone"
+                        >
+                          <Download size={14} />
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-400 leading-tight">
+                      Gera um ícone profissional exclusivo para o seu desktop usando inteligência artificial.
+                    </p>
+                  </div>
                 </div>
-              </button>
+              </div>
             </div>
-          )}
+          </div>
 
           {/* Workspace Section */}
           <div className="space-y-3">

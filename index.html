@@ -12,6 +12,22 @@
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
+      // Apply custom icon if exists
+      const customIcon = localStorage.getItem('rspro_custom_icon');
+      if (customIcon) {
+        const iconLink = document.querySelector('link[rel="apple-touch-icon"]');
+        if (iconLink) iconLink.href = customIcon;
+        
+        // Also try to update favicon
+        let favicon = document.querySelector('link[rel="icon"]');
+        if (!favicon) {
+          favicon = document.createElement('link');
+          favicon.rel = 'icon';
+          document.head.appendChild(favicon);
+        }
+        favicon.href = customIcon;
+      }
+
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')

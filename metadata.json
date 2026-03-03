@@ -1,0 +1,5 @@
+{
+  "name": "Rede Script Pro",
+  "description": "Sistema de gestão de leads e scripts de vendas com suporte a IndexedDB e exportação para Excel.",
+  "requestFramePermissions": []
+}

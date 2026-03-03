@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { db } from '../db';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
-import { Trash2, Download, Upload, RefreshCcw, X, ShieldAlert, FolderOpen, HardDrive, Smartphone, Sparkles } from 'lucide-react';
+import { Trash2, Download, Upload, RefreshCcw, X, ShieldAlert, FolderOpen, HardDrive, Smartphone, Sparkles, ImageIcon } from 'lucide-react';
 import { motion } from 'motion/react';
 import { DEFAULT_QUESTIONS, INITIAL_STATUSES } from '../constants';
 import { syncToLocalExcel } from '../lib/sync';
@@ -17,6 +17,7 @@ interface SettingsModalProps {
 
 export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const iconInputRef = useRef<HTMLInputElement>(null);
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isGeneratingIcon, setIsGeneratingIcon] = useState(false);
@@ -67,6 +68,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           toast.success('Ícone gerado com sucesso! (Visualização disponível abaixo)');
           // Store in local storage for persistence in this session
           localStorage.setItem('rspro_custom_icon', iconUrl);
+          window.location.reload();
         }
       }
     } catch (error: any) {
@@ -83,6 +85,146 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       }
     } finally {
       setIsGeneratingIcon(false);
+    }
+  };
+
+  const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Tipos de arquivo suportados específicos
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    const allowedExtensions = ['.jpg', '.jpeg', '.png', '.webp'];
+    const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
+
+    // Validar tipo MIME e extensão do arquivo
+    if (!allowedTypes.includes(file.type) || !allowedExtensions.includes(fileExtension)) {
+      toast.error('Formato não suportado. Use apenas JPG, PNG ou WEBP.', {
+        duration: 4000,
+      });
+      // Limpar input para permitir nova seleção
+      e.target.value = '';
+      return;
+    }
+
+    // Validar tamanho do arquivo (max 5MB)
+    const maxSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxSize) {
+      toast.error(`Imagem muito grande. Tamanho máximo: 5MB.\nTamanho atual: ${(file.size / 1024 / 1024).toFixed(2)}MB`, {
+        duration: 5000,
+      });
+      e.target.value = '';
+      return;
+    }
+
+    // Validar tamanho mínimo do arquivo (evitar imagens muito pequenas/corrompidas)
+    const minSize = 1 * 1024; // 1KB
+    if (file.size < minSize) {
+      toast.error('Arquivo muito pequeno. Selecione uma imagem válida.', {
+        duration: 4000,
+      });
+      e.target.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+
+    reader.onload = (event) => {
+      const iconUrl = event.target?.result as string;
+      if (!iconUrl) {
+        toast.error('Erro ao processar a imagem. Tente novamente.');
+        e.target.value = '';
+        return;
+      }
+
+      // Criar imagem para validar dimensões
+      const img = new Image();
+
+      img.onload = () => {
+        const { width, height } = img;
+        const minDimension = 64; // Mínimo 64x64 pixels
+        const maxDimension = 2048; // Máximo 2048x2048 pixels
+
+        // Validar dimensões mínimas
+        if (width < minDimension || height < minDimension) {
+          toast.error(`Dimensões muito pequenas. Mínimo: ${minDimension}x${minDimension}px.\nDimensões atuais: ${width}x${height}px`, {
+            duration: 5000,
+          });
+          e.target.value = '';
+          return;
+        }
+
+        // Validar dimensões máximas
+        if (width > maxDimension || height > maxDimension) {
+          toast.error(`Dimensões muito grandes. Máximo: ${maxDimension}x${maxDimension}px.\nDimensões atuais: ${width}x${height}px`, {
+            duration: 5000,
+          });
+          e.target.value = '';
+          return;
+        }
+
+        // Validar proporção (não aceitar imagens muito alongadas)
+        const aspectRatio = width / height;
+        const minAspectRatio = 0.5; // 1:2
+        const maxAspectRatio = 2.0; // 2:1
+
+        if (aspectRatio < minAspectRatio || aspectRatio > maxAspectRatio) {
+          toast.error('Proporção da imagem inválida. Use uma imagem mais quadrada (entre 1:2 e 2:1).', {
+            duration: 5000,
+          });
+          e.target.value = '';
+          return;
+        }
+
+        // Todas as validações passaram - salvar o ícone
+        try {
+          localStorage.setItem('rspro_custom_icon', iconUrl);
+          toast.success(`Ícone atualizado com sucesso!\nDimensões: ${width}x${height}px`, {
+            duration: 3000,
+          });
+          window.location.reload();
+        } catch (storageError) {
+          // Erro de quota excedida no localStorage
+          toast.error('Imagem muito grande para armazenar. Tente uma imagem menor ou compacte-a.', {
+            duration: 5000,
+          });
+          e.target.value = '';
+        }
+      };
+
+      img.onerror = () => {
+        toast.error('Erro ao carregar a imagem. O arquivo pode estar corrompido.', {
+          duration: 4000,
+        });
+        e.target.value = '';
+      };
+
+      img.src = iconUrl;
+    };
+
+    reader.onerror = (error) => {
+      console.error('FileReader error:', error);
+      toast.error('Erro ao ler o arquivo. Verifique se o arquivo não está corrompido.', {
+        duration: 4000,
+      });
+      e.target.value = '';
+    };
+
+    reader.onabort = () => {
+      toast.error('Leitura do arquivo foi cancelada.', {
+        duration: 3000,
+      });
+      e.target.value = '';
+    };
+
+    try {
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Error reading file:', error);
+      toast.error('Erro inesperado ao processar o arquivo. Tente novamente.', {
+        duration: 4000,
+      });
+      e.target.value = '';
     }
   };
 
@@ -317,6 +459,21 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   <div className="flex-1 space-y-2">
                     <div className="flex gap-2">
                       <button 
+                        onClick={() => iconInputRef.current?.click()}
+                        className="flex-1 flex items-center justify-center gap-2 py-2 bg-slate-100 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-200 transition-all shadow-sm"
+                      >
+                        <ImageIcon size={14} />
+                        Upload
+                      </button>
+                      <input
+                        type="file"
+                        ref={iconInputRef}
+                        onChange={handleIconUpload}
+                        accept="image/*"
+                        className="hidden"
+                      />
+                      
+                      <button 
                         onClick={generateAndSetIcon}
                         disabled={isGeneratingIcon}
                         className="flex-1 flex items-center justify-center gap-2 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 disabled:opacity-50 transition-all shadow-sm"
@@ -345,7 +502,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       )}
                     </div>
                     <p className="text-[10px] text-slate-400 leading-tight">
-                      Gera um ícone profissional exclusivo para o seu desktop usando inteligência artificial.
+                      Faça upload da sua imagem ou gere um ícone profissional com IA.
                     </p>
                   </div>
                 </div>

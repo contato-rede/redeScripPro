@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { Trash2, Upload, RefreshCcw, X, ShieldAlert, FolderOpen, HardDrive, Smartphone, Download } from 'lucide-react';
 import { motion } from 'motion/react';
 import { DEFAULT_QUESTIONS, INITIAL_STATUSES } from '../constants';
-import { syncToLocalExcel } from '../lib/sync';
+import { syncToLocalExcel, importFromLocalExcel } from '../lib/sync';
 import { cn } from '../lib/utils';
 import { AppSettings } from '../types';
 
@@ -111,13 +111,55 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
     
     try {
-      await syncToLocalExcel(settings.directoryHandle);
-      toast.success('Sincronização concluída!');
+      const result = await syncToLocalExcel(settings.directoryHandle);
+      toast.success(
+        `Sincronização concluída!\n📋 ${result.stats.leads} leads\n📝 ${result.stats.questions} perguntas\n🏷️ ${result.stats.statuses} status`,
+        { duration: 5000 }
+      );
       
       const updated = await db.settings.get('main');
       if (updated) setSettings(updated);
     } catch (error: any) {
       toast.error(error.message || 'Falha na sincronização. Tente reconectar a pasta.');
+    }
+  };
+
+  const importFromExcel = async () => {
+    if (!settings?.directoryHandle) {
+      toast.error('Nenhuma pasta de trabalho selecionada. Por favor, selecione uma pasta primeiro.');
+      return;
+    }
+
+    const confirmed = confirm(
+      'Isso importará todos os dados do Excel (leads, script, status e configurações).\n\n' +
+      'Leads duplicados serão ignorados.\n\n' +
+      'Deseja continuar?'
+    );
+    
+    if (!confirmed) return;
+
+    try {
+      const result = await importFromLocalExcel(settings.directoryHandle, {
+        mergeStrategy: 'merge',
+        importLeads: true,
+        importScript: true,
+        importStatuses: true,
+        importSettings: true
+      });
+
+      const messages = [
+        `📋 Leads: ${result.leads.imported} importados, ${result.leads.skipped} ignorados`,
+        `📝 Perguntas: ${result.questions.imported} importadas, ${result.questions.skipped} ignoradas`,
+        `🏷️ Status: ${result.statuses.imported} importados, ${result.statuses.skipped} ignorados`,
+        result.settings.imported ? '⚙️ Configurações: importadas' : ''
+      ].filter(Boolean);
+
+      toast.success(`Importação concluída!\n${messages.join('\n')}`, { duration: 6000 });
+      
+      const updated = await db.settings.get('main');
+      if (updated) setSettings(updated);
+    } catch (error: any) {
+      toast.error(error.message || 'Falha na importação. Verifique se o arquivo existe.');
     }
   };
 
@@ -331,13 +373,24 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   {settings?.directoryHandle ? 'Alterar Pasta' : 'Selecionar Pasta'}
                 </button>
                 {settings?.directoryHandle && (
-                  <button 
-                    onClick={forceSync}
-                    className="flex-1 btn-primary text-xs py-2 flex items-center justify-center gap-1"
-                  >
-                    <RefreshCcw size={14} />
-                    Sincronizar Agora
-                  </button>
+                  <>
+                    <button 
+                      onClick={importFromExcel}
+                      className="flex-1 btn-secondary text-xs py-2 flex items-center justify-center gap-1"
+                      title="Importar dados do Excel"
+                    >
+                      <Upload size={14} />
+                      Importar
+                    </button>
+                    <button 
+                      onClick={forceSync}
+                      className="flex-1 btn-primary text-xs py-2 flex items-center justify-center gap-1"
+                      title="Exportar todos os dados para Excel"
+                    >
+                      <RefreshCcw size={14} />
+                      Sincronizar
+                    </button>
+                  </>
                 )}
               </div>
               

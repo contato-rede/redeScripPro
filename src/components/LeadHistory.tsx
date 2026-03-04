@@ -5,6 +5,7 @@ import { format, isToday, isThisWeek, isWithinInterval, startOfDay, endOfDay, st
 import { Download, Search, Trash2, ExternalLink, AlertTriangle, X, FileUp, FileSpreadsheet, Filter, Calendar as CalendarIcon } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { formatCurrency, cn, toCamelCase } from '../lib/utils';
+import { validateUFCidade, isValidUF } from '../constants/brazilLocations';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 
@@ -134,25 +135,69 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
           return;
         }
 
-        const newLeads: Lead[] = jsonData.map(row => ({
-          createdAt: new Date(),
-          nomeRetifica: toCamelCase(row['Nome Retífica'] || 'Sem Nome'),
-          responsavel: toCamelCase(row['Responsável'] || 'Não Informado'),
-          uf: (row['UF'] || '').substring(0, 2).toUpperCase(),
-          cidade: toCamelCase(row['Cidade'] || 'Não Informada'),
-          telefone: row['Telefone'] || '',
-          status: 'Pendente',
-          compraEstimada: Number(row['Compra Estimada']) || 0,
-          planilhaEnviada: 'Não',
-          liveAgendada: null,
-          fechou: 'Não',
-          motivoPerda: '',
-          observacao: row['Observação'] || '',
-          answers: []
-        }));
+        // Validação de UF e Cidade antes da importação
+        const invalidRows: { row: number; errors: string[] }[] = [];
+        
+        const newLeads: Lead[] = jsonData.map((row, index) => {
+          const uf = (row['UF'] || '').substring(0, 2).toUpperCase();
+          const cidade = toCamelCase(row['Cidade'] || '');
+          const rowErrors: string[] = [];
+          
+          // Validação de UF
+          if (!uf) {
+            rowErrors.push('UF não informada');
+          } else if (!isValidUF(uf)) {
+            rowErrors.push(`UF "${uf}" inválida`);
+          }
+          
+          // Validação de Cidade
+          if (!cidade) {
+            rowErrors.push('Cidade não informada');
+          } else if (uf && !validateUFCidade(uf, cidade).valid) {
+            rowErrors.push(`Cidade "${cidade}" não encontrada para a UF ${uf}`);
+          }
+          
+          if (rowErrors.length > 0) {
+            invalidRows.push({ row: index + 2, errors: rowErrors }); // +2 porque linha 1 é cabeçalho
+          }
+          
+          return {
+            createdAt: new Date(),
+            nomeRetifica: toCamelCase(row['Nome Retífica'] || 'Sem Nome'),
+            responsavel: toCamelCase(row['Responsável'] || 'Não Informado'),
+            uf: uf || 'XX', // Valor padrão se inválido
+            cidade: cidade || 'Não Informada',
+            telefone: row['Telefone'] || '',
+            status: 'Pendente',
+            compraEstimada: Number(row['Compra Estimada']) || 0,
+            planilhaEnviada: 'Não',
+            liveAgendada: null,
+            fechou: 'Não',
+            motivoPerda: '',
+            observacao: row['Observação'] || '',
+            answers: []
+          };
+        });
+
+        // Se houver erros, mostra alerta mas permite importar os válidos
+        if (invalidRows.length > 0) {
+          const errorDetails = invalidRows.slice(0, 5).map(r => 
+            `Linha ${r.row}: ${r.errors.join(', ')}`
+          ).join('\n');
+          
+          const moreErrors = invalidRows.length > 5 ? `\n... e mais ${invalidRows.length - 5} linhas com erros` : '';
+          
+          toast.warning(
+            `${invalidRows.length} linha(s) com UF/Cidade inválidas. Dados serão importados com valores padrão.`,
+            {
+              description: `${errorDetails}${moreErrors}`,
+              duration: 8000,
+            }
+          );
+        }
 
         await db.leads.bulkAdd(newLeads);
-        toast.success(`${newLeads.length} leads importados com sucesso!`);
+        toast.success(`${newLeads.length} leads importados! ${invalidRows.length > 0 ? `(${invalidRows.length} com dados de localização inválidos)` : ''}`);
         loadData();
         if (fileInputRef.current) fileInputRef.current.value = '';
       } catch (error) {

@@ -2,10 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { db } from '../db';
 import { Lead, Question, LeadStatus, LeadAnswer } from '../types';
 import { INITIAL_STATUSES } from '../constants';
-import { Save, User, Building2, MapPin, Phone, DollarSign, Calendar, FileText, CheckCircle2, XCircle } from 'lucide-react';
+import { Save, User, Building2, MapPin, Phone, DollarSign, Calendar, FileText } from 'lucide-react';
 import { cn, formatPhoneNumber, formatCurrency, parseCurrency, toCamelCase } from '../lib/utils';
 import { toast } from 'sonner';
 import { syncToLocalExcel } from '../lib/sync';
+import { UFSelector } from './UFSelector';
+import { CidadeSelector } from './CidadeSelector';
+import { validateUFCidade } from '../constants/brazilLocations';
 
 interface LeadFormProps {
   onSuccess: () => void;
@@ -88,6 +91,14 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
     if (!formData.uf?.trim()) newErrors.uf = 'UF é obrigatória';
     if (!formData.cidade?.trim()) newErrors.cidade = 'Cidade é obrigatória';
     if (!formData.telefone?.trim()) newErrors.telefone = 'Telefone é obrigatório';
+    
+    // Validação de UF e Cidade
+    if (formData.uf && formData.cidade) {
+      const validation = validateUFCidade(formData.uf, formData.cidade);
+      if (!validation.valid) {
+        newErrors.cidade = validation.error || 'Cidade inválida para a UF selecionada';
+      }
+    }
     
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -215,45 +226,26 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
 
             <div className="grid grid-cols-3 gap-4">
               <div className="col-span-1">
-                <label className="block text-sm font-medium text-slate-700 mb-1">
-                  UF <span className="text-red-500">*</span>
-                </label>
-                <input
-                  maxLength={2}
-                  type="text"
-                  className={cn(
-                    "input-field uppercase",
-                    errors.uf && "border-red-500 focus:ring-red-500"
-                  )}
-                  value={formData.uf}
-                  onChange={e => {
-                    setFormData({ ...formData, uf: e.target.value.toUpperCase() });
+                <UFSelector
+                  value={formData.uf || ''}
+                  onChange={(uf) => {
+                    setFormData({ ...formData, uf, cidade: '' }); // Limpa cidade ao mudar UF
                     if (errors.uf) setErrors(prev => ({ ...prev, uf: '' }));
+                    if (errors.cidade) setErrors(prev => ({ ...prev, cidade: '' }));
                   }}
+                  error={errors.uf}
                 />
-                {errors.uf && <p className="text-red-500 text-xs mt-1">{errors.uf}</p>}
               </div>
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-slate-700 mb-1.5">
-                  Cidade <span className="text-red-500">*</span>
-                </label>
-                <div className="relative group">
-                  <MapPin className="input-icon" size={18} />
-                  <input
-                    type="text"
-                    placeholder="Digite a cidade"
-                    className={cn(
-                      "input-field-icon",
-                      errors.cidade && "border-red-500 focus:ring-red-500"
-                    )}
-                    value={formData.cidade}
-                    onChange={e => {
-                      setFormData({ ...formData, cidade: e.target.value });
-                      if (errors.cidade) setErrors(prev => ({ ...prev, cidade: '' }));
-                    }}
-                  />
-                </div>
-                {errors.cidade && <p className="text-red-500 text-xs mt-1.5">{errors.cidade}</p>}
+                <CidadeSelector
+                  value={formData.cidade || ''}
+                  uf={formData.uf || ''}
+                  onChange={(cidade) => {
+                    setFormData({ ...formData, cidade });
+                    if (errors.cidade) setErrors(prev => ({ ...prev, cidade: '' }));
+                  }}
+                  error={errors.cidade}
+                />
               </div>
             </div>
 

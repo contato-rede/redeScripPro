@@ -38,10 +38,27 @@ const SortableQuestion: React.FC<SortableItemProps> = ({ question, onRemove, onU
     isDragging
   } = useSortable({ id: question.id });
 
+  const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
     zIndex: isDragging ? 10 : 1,
+  };
+
+  // Ajusta a altura do textarea quando o componente monta ou o valor muda
+  React.useEffect(() => {
+    if (textareaRef.current) {
+      const textarea = textareaRef.current;
+      textarea.style.height = 'auto';
+      textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+    }
+  }, [question.text]);
+
+  const handleInput = (e: React.FormEvent<HTMLTextAreaElement>) => {
+    const target = e.target as HTMLTextAreaElement;
+    target.style.height = 'auto';
+    target.style.height = Math.min(target.scrollHeight, 120) + 'px';
   };
 
   return (
@@ -62,16 +79,13 @@ const SortableQuestion: React.FC<SortableItemProps> = ({ question, onRemove, onU
       </button>
       
       <textarea
+        ref={textareaRef}
         value={question.text}
         onChange={(e) => onUpdate(question.id, e.target.value)}
-        className="flex-1 bg-transparent border-none focus:ring-0 text-slate-700 placeholder:text-slate-300 resize-none min-h-[24px] max-h-[120px]"
+        className="flex-1 bg-transparent border-none focus:ring-0 text-slate-700 placeholder:text-slate-300 resize-none min-h-[24px] max-h-[120px] overflow-hidden"
         placeholder="Digite sua pergunta aqui..."
         rows={1}
-        onInput={(e) => {
-          const target = e.target as HTMLTextAreaElement;
-          target.style.height = 'auto';
-          target.style.height = Math.min(target.scrollHeight, 120) + 'px';
-        }}
+        onInput={handleInput}
       />
 
       <button

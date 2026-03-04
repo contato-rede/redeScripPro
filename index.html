@@ -6,47 +6,20 @@
     <title>Rede Script Pro</title>
     <link rel="manifest" href="/manifest.json" />
     <meta name="theme-color" content="#4f46e5" />
-    <link rel="apple-touch-icon" href="https://picsum.photos/seed/rspro/192/192" />
+    <link rel="icon" type="image/png" href="/RedeScriptPro_Icon.png" />
+    <link rel="apple-touch-icon" href="/RedeScriptPro_Icon.png" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      // Apply custom icon if exists
-      (function() {
-        const customIcon = localStorage.getItem('rspro_custom_icon');
-        const defaultIcon = 'https://picsum.photos/seed/rspro/192/192';
-        const iconUrl = customIcon || defaultIcon;
-
-        // Update apple-touch-icon
-        const iconLink = document.querySelector('link[rel="apple-touch-icon"]');
-        if (iconLink) iconLink.href = iconUrl;
-        
-        // Update favicon
-        let favicon = document.querySelector('link[rel="icon"]');
-        if (!favicon) {
-          favicon = document.createElement('link');
-          favicon.rel = 'icon';
-          document.head.appendChild(favicon);
-        }
-        favicon.href = iconUrl;
-      })();
-
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js')
             .then(registration => {
-              console.log('SW registered');
-              
-              // Listen for messages from service worker
-              navigator.serviceWorker.addEventListener('message', (event) => {
-                if (event.data && event.data.type === 'GET_CUSTOM_ICON') {
-                  const customIcon = localStorage.getItem('rspro_custom_icon');
-                  event.ports[0].postMessage({ icon: customIcon });
-                }
-              });
+              console.log('Service Worker registered');
             })
-            .catch(err => console.log('SW registration failed', err));
+            .catch(err => console.log('Service Worker registration failed', err));
         });
       }
     </script>

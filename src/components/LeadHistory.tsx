@@ -4,7 +4,7 @@ import { Lead, LeadStatus } from '../types';
 import { format, isToday, isThisWeek, isWithinInterval, startOfDay, endOfDay, startOfWeek, endOfWeek } from 'date-fns';
 import { Download, Search, Trash2, ExternalLink, AlertTriangle, X, FileUp, FileSpreadsheet, Filter, Calendar as CalendarIcon } from 'lucide-react';
 import * as XLSX from 'xlsx';
-import { formatCurrency, cn } from '../lib/utils';
+import { formatCurrency, cn, toCamelCase } from '../lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { toast } from 'sonner';
 
@@ -136,10 +136,10 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
 
         const newLeads: Lead[] = jsonData.map(row => ({
           createdAt: new Date(),
-          nomeRetifica: row['Nome Retífica'] || 'Sem Nome',
-          responsavel: row['Responsável'] || 'Não Informado',
+          nomeRetifica: toCamelCase(row['Nome Retífica'] || 'Sem Nome'),
+          responsavel: toCamelCase(row['Responsável'] || 'Não Informado'),
           uf: (row['UF'] || '').substring(0, 2).toUpperCase(),
-          cidade: row['Cidade'] || 'Não Informada',
+          cidade: toCamelCase(row['Cidade'] || 'Não Informada'),
           telefone: row['Telefone'] || '',
           status: 'Pendente',
           compraEstimada: Number(row['Compra Estimada']) || 0,
@@ -222,12 +222,12 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
           <p className="text-slate-500">Visualize e exporte todos os registros salvos.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
+          <div className="relative group">
+            <Search className="input-icon" size={18} />
             <input
               type="text"
               placeholder="Buscar..."
-              className="input-field pl-10 w-64"
+              className="input-field-icon w-64"
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
             />

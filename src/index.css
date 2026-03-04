@@ -16,7 +16,22 @@
 }
 
 .input-field {
-  @apply w-full px-4 py-2 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none;
+  @apply w-full px-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-slate-900 placeholder:text-slate-400;
+}
+
+/* Input with icon - increased padding and better positioning */
+.input-field-icon {
+  @apply w-full pl-11 pr-4 py-2.5 bg-white border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all outline-none text-slate-900 placeholder:text-slate-400;
+}
+
+/* Icon container for inputs */
+.input-icon {
+  @apply absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none;
+}
+
+/* Focus state for icon */
+.group:focus-within .input-icon {
+  @apply text-indigo-500;
 }
 
 .btn-primary {

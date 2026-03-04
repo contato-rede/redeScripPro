@@ -4,7 +4,45 @@ import { format } from 'date-fns';
 
 const FILE_NAME = 'RedeScript_Dados.xlsx';
 
-export async function syncToLocalExcel(directoryHandle: FileSystemDirectoryHandle) {
+/**
+ * Valida se o diretório está acessível antes da sincronização
+ */
+async function validateDirectory(directoryHandle: FileSystemDirectoryHandle | undefined): Promise<{ valid: boolean; error?: string }> {
+  if (!directoryHandle) {
+    return { valid: false, error: 'Nenhuma pasta de trabalho selecionada. Por favor, selecione uma pasta nas configurações.' };
+  }
+
+  try {
+    // Verificar permissões de escrita
+    const status = await (directoryHandle as any).queryPermission({ mode: 'readwrite' });
+    if (status !== 'granted') {
+      // Tentar solicitar permissão
+      const newStatus = await (directoryHandle as any).requestPermission({ mode: 'readwrite' });
+      if (newStatus !== 'granted') {
+        return { valid: false, error: 'Permissão de escrita negada. Por favor, selecione a pasta novamente.' };
+      }
+    }
+
+    // Tentar acessar o diretório para confirmar que está disponível
+    await directoryHandle.resolve({} as FileSystemHandle);
+    
+    return { valid: true };
+  } catch (error) {
+    console.error('Erro ao validar diretório:', error);
+    return { valid: false, error: 'Pasta de trabalho não está mais acessível. Por favor, selecione uma nova pasta nas configurações.' };
+  }
+}
+
+export async function syncToLocalExcel(directoryHandle: FileSystemDirectoryHandle | undefined) {
+  // Validação obrigatória do diretório
+  const validation = await validateDirectory(directoryHandle);
+  if (!validation.valid) {
+    throw new Error(validation.error);
+  }
+
+  // Garantir que directoryHandle não é undefined após validação
+  const handle = directoryHandle as FileSystemDirectoryHandle;
+
   try {
     // 1. Get all data
     const leads = await db.leads.toArray();
@@ -35,7 +73,7 @@ export async function syncToLocalExcel(directoryHandle: FileSystemDirectoryHandl
     const excelBuffer = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
     
     // 4. Save to Local File System
-    const fileHandle = await directoryHandle.getFileHandle(FILE_NAME, { create: true });
+    const fileHandle = await handle.getFileHandle(FILE_NAME, { create: true });
     const writable = await fileHandle.createWritable();
     await writable.write(excelBuffer);
     await writable.close();
@@ -50,9 +88,17 @@ export async function syncToLocalExcel(directoryHandle: FileSystemDirectoryHandl
   }
 }
 
-export async function importFromLocalExcel(directoryHandle: FileSystemDirectoryHandle) {
+export async function importFromLocalExcel(directoryHandle: FileSystemDirectoryHandle | undefined) {
+  // Validação obrigatória do diretório
+  const validation = await validateDirectory(directoryHandle);
+  if (!validation.valid) {
+    throw new Error(validation.error);
+  }
+
+  const handle = directoryHandle as FileSystemDirectoryHandle;
+
   try {
-    const fileHandle = await directoryHandle.getFileHandle(FILE_NAME);
+    const fileHandle = await handle.getFileHandle(FILE_NAME);
     const file = await fileHandle.getFile();
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: 'array' });

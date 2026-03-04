@@ -3,7 +3,7 @@ import { db } from '../db';
 import { Lead, Question, LeadStatus, LeadAnswer } from '../types';
 import { INITIAL_STATUSES } from '../constants';
 import { Save, User, Building2, MapPin, Phone, DollarSign, Calendar, FileText, CheckCircle2, XCircle } from 'lucide-react';
-import { cn, formatPhoneNumber, formatCurrency, parseCurrency } from '../lib/utils';
+import { cn, formatPhoneNumber, formatCurrency, parseCurrency, toCamelCase } from '../lib/utils';
 import { toast } from 'sonner';
 import { syncToLocalExcel } from '../lib/sync';
 
@@ -108,8 +108,15 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
       return;
     }
 
+    // Aplicar formatação CamelCase antes de salvar
+    const formattedData = {
+      ...formData,
+      nomeRetifica: toCamelCase(formData.nomeRetifica || ''),
+      responsavel: toCamelCase(formData.responsavel || ''),
+    };
+
     const lead: Lead = {
-      ...formData as Lead,
+      ...formattedData as Lead,
       createdAt: initialData?.createdAt || new Date(),
     };
 
@@ -119,13 +126,15 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
       await db.leads.add(lead);
     }
     
-    // Auto-sync to local Excel if workspace is set
+    // Auto-sync to local Excel if workspace is set and accessible
     const settings = await db.settings.get('main');
-    if (settings?.directoryHandle) {
+    if (settings?.directoryHandle && settings?.autoSync) {
       try {
         await syncToLocalExcel(settings.directoryHandle);
-      } catch (e) {
-        console.warn('Auto-sync failed', e);
+      } catch (e: any) {
+        console.warn('Auto-sync failed:', e.message);
+        // Não exibir erro ao usuário para não interromper o fluxo de salvamento
+        // A sincronização pode ser feita manualmente depois
       }
     }
 
@@ -147,15 +156,16 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
           
           <div className="grid grid-cols-1 gap-4">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
                 Nome da Retífica <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <Building2 className="absolute left-3 top-2.5 text-slate-400" size={18} />
+              <div className="relative group">
+                <Building2 className="input-icon" size={18} />
                 <input
                   type="text"
+                  placeholder="Digite o nome da retífica"
                   className={cn(
-                    "input-field pl-10",
+                    "input-field-icon",
                     errors.nomeRetifica && "border-red-500 focus:ring-red-500"
                   )}
                   value={formData.nomeRetifica}
@@ -163,21 +173,28 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
                     setFormData({ ...formData, nomeRetifica: e.target.value });
                     if (errors.nomeRetifica) setErrors(prev => ({ ...prev, nomeRetifica: '' }));
                   }}
+                  onBlur={e => {
+                    const formatted = toCamelCase(e.target.value);
+                    if (formatted !== e.target.value) {
+                      setFormData({ ...formData, nomeRetifica: formatted });
+                    }
+                  }}
                 />
               </div>
-              {errors.nomeRetifica && <p className="text-red-500 text-xs mt-1">{errors.nomeRetifica}</p>}
+              {errors.nomeRetifica && <p className="text-red-500 text-xs mt-1.5">{errors.nomeRetifica}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
                 Responsável <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <User className="absolute left-3 top-2.5 text-slate-400" size={18} />
+              <div className="relative group">
+                <User className="input-icon" size={18} />
                 <input
                   type="text"
+                  placeholder="Digite o nome do responsável"
                   className={cn(
-                    "input-field pl-10",
+                    "input-field-icon",
                     errors.responsavel && "border-red-500 focus:ring-red-500"
                   )}
                   value={formData.responsavel}
@@ -185,9 +202,15 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
                     setFormData({ ...formData, responsavel: e.target.value });
                     if (errors.responsavel) setErrors(prev => ({ ...prev, responsavel: '' }));
                   }}
+                  onBlur={e => {
+                    const formatted = toCamelCase(e.target.value);
+                    if (formatted !== e.target.value) {
+                      setFormData({ ...formData, responsavel: formatted });
+                    }
+                  }}
                 />
               </div>
-              {errors.responsavel && <p className="text-red-500 text-xs mt-1">{errors.responsavel}</p>}
+              {errors.responsavel && <p className="text-red-500 text-xs mt-1.5">{errors.responsavel}</p>}
             </div>
 
             <div className="grid grid-cols-3 gap-4">
@@ -211,15 +234,16 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
                 {errors.uf && <p className="text-red-500 text-xs mt-1">{errors.uf}</p>}
               </div>
               <div className="col-span-2">
-                <label className="block text-sm font-medium text-slate-700 mb-1">
+                <label className="block text-sm font-medium text-slate-700 mb-1.5">
                   Cidade <span className="text-red-500">*</span>
                 </label>
-                <div className="relative">
-                  <MapPin className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                <div className="relative group">
+                  <MapPin className="input-icon" size={18} />
                   <input
                     type="text"
+                    placeholder="Digite a cidade"
                     className={cn(
-                      "input-field pl-10",
+                      "input-field-icon",
                       errors.cidade && "border-red-500 focus:ring-red-500"
                     )}
                     value={formData.cidade}
@@ -229,20 +253,21 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
                     }}
                   />
                 </div>
-                {errors.cidade && <p className="text-red-500 text-xs mt-1">{errors.cidade}</p>}
+                {errors.cidade && <p className="text-red-500 text-xs mt-1.5">{errors.cidade}</p>}
               </div>
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">
                 Telefone <span className="text-red-500">*</span>
               </label>
-              <div className="relative">
-                <Phone className="absolute left-3 top-2.5 text-slate-400" size={18} />
+              <div className="relative group">
+                <Phone className="input-icon" size={18} />
                 <input
                   type="tel"
+                  placeholder="(00) 00000-0000"
                   className={cn(
-                    "input-field pl-10",
+                    "input-field-icon",
                     errors.telefone && "border-red-500 focus:ring-red-500"
                   )}
                   value={formData.telefone}
@@ -252,7 +277,7 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
                   }}
                 />
               </div>
-              {errors.telefone && <p className="text-red-500 text-xs mt-1">{errors.telefone}</p>}
+              {errors.telefone && <p className="text-red-500 text-xs mt-1.5">{errors.telefone}</p>}
             </div>
           </div>
         </div>
@@ -336,12 +361,12 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Live Agendada</label>
-              <div className="relative">
-                <Calendar className="absolute left-3 top-2.5 text-slate-400" size={18} />
+              <label className="block text-sm font-medium text-slate-700 mb-1.5">Live Agendada</label>
+              <div className="relative group">
+                <Calendar className="input-icon" size={18} />
                 <input
                   type="datetime-local"
-                  className="input-field pl-10"
+                  className="input-field-icon"
                   onChange={e => setFormData({ ...formData, liveAgendada: e.target.value ? new Date(e.target.value) : null })}
                 />
               </div>

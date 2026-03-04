@@ -21,6 +21,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [settings, setSettings] = useState<AppSettings | null>(null);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [isGeneratingIcon, setIsGeneratingIcon] = useState(false);
+  const [isInstallable, setIsInstallable] = useState<boolean | null>(null);
 
   const generateAndSetIcon = async () => {
     // Check for API key selection if using advanced models or if previous attempt failed with permission error
@@ -61,15 +62,38 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       }
 
       if (iconUrl) {
-        // Update manifest links in index.html dynamically
-        const manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement;
-        if (manifestLink) {
-          // In a real app we'd save this to a file, but for now we'll just show it
-          toast.success('Ícone gerado com sucesso! (Visualização disponível abaixo)');
-          // Store in local storage for persistence in this session
-          localStorage.setItem('rspro_custom_icon', iconUrl);
-          window.location.reload();
+        // Store in local storage for persistence
+        localStorage.setItem('rspro_custom_icon', iconUrl);
+
+        // Update icons on the page immediately
+        const iconLink = document.querySelector('link[rel="apple-touch-icon"]') as HTMLLinkElement;
+        if (iconLink) iconLink.href = iconUrl;
+        
+        const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+        if (favicon) favicon.href = iconUrl;
+
+        // Force service worker to update manifest
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'UPDATE_MANIFEST',
+            icon: iconUrl
+          });
         }
+
+        toast.success('Ícone gerado com sucesso!');
+        
+        // Forçar atualização do manifesto e recarregar
+        setTimeout(() => {
+          // Atualizar o link do manifesto para forçar reavaliação
+          const manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement;
+          if (manifestLink) {
+            const currentHref = manifestLink.href;
+            manifestLink.href = currentHref + '?t=' + Date.now();
+          }
+          
+          // Recarregar para aplicar todas as mudanças
+          window.location.reload();
+        }, 500);
       }
     } catch (error: any) {
       const errorMessage = error?.message || '';
@@ -179,10 +203,38 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
         // Todas as validações passaram - salvar o ícone
         try {
           localStorage.setItem('rspro_custom_icon', iconUrl);
+          
+          // Atualizar ícones na página imediatamente
+          const iconLink = document.querySelector('link[rel="apple-touch-icon"]') as HTMLLinkElement;
+          if (iconLink) iconLink.href = iconUrl;
+          
+          const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+          if (favicon) favicon.href = iconUrl;
+
+          // Force service worker to update manifest
+          if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            navigator.serviceWorker.controller.postMessage({
+              type: 'UPDATE_MANIFEST',
+              icon: iconUrl
+            });
+          }
+
           toast.success(`Ícone atualizado com sucesso!\nDimensões: ${width}x${height}px`, {
             duration: 3000,
           });
-          window.location.reload();
+          
+          // Forçar atualização do manifesto e recarregar
+          setTimeout(() => {
+            // Atualizar o link do manifesto para forçar reavaliação
+            const manifestLink = document.querySelector('link[rel="manifest"]') as HTMLLinkElement;
+            if (manifestLink) {
+              const currentHref = manifestLink.href;
+              manifestLink.href = currentHref + '?t=' + Date.now();
+            }
+            
+            // Recarregar para aplicar todas as mudanças
+            window.location.reload();
+          }, 500);
         } catch (storageError) {
           // Erro de quota excedida no localStorage
           toast.error('Imagem muito grande para armazenar. Tente uma imagem menor ou compacte-a.', {
@@ -232,14 +284,29 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     const handleBeforeInstallPrompt = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
+      setIsInstallable(true);
     };
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
+    // Verificar se o app já está instalado
+    if (window.matchMedia('(display-mode: standalone)').matches) {
+      setIsInstallable(false);
+    }
+
+    // Timeout para determinar se o evento não foi disparado
+    const timeout = setTimeout(() => {
+      if (deferredPrompt === null && !window.matchMedia('(display-mode: standalone)').matches) {
+        // O evento pode não ter sido disparado ainda ou o app não é instalável
+        setIsInstallable(false);
+      }
+    }, 2000);
+
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      clearTimeout(timeout);
     };
-  }, []);
+  }, [deferredPrompt]);
 
   useEffect(() => {
     if (isOpen) {
@@ -298,22 +365,19 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   };
 
   const forceSync = async () => {
-    if (!settings?.directoryHandle) return;
+    if (!settings?.directoryHandle) {
+      toast.error('Nenhuma pasta de trabalho selecionada. Por favor, selecione uma pasta primeiro.');
+      return;
+    }
     
     try {
-      // Re-verify permission
-      const status = await (settings.directoryHandle as any).queryPermission({ mode: 'readwrite' });
-      if (status !== 'granted') {
-        await (settings.directoryHandle as any).requestPermission({ mode: 'readwrite' });
-      }
-      
       await syncToLocalExcel(settings.directoryHandle);
       toast.success('Sincronização concluída!');
       
       const updated = await db.settings.get('main');
       if (updated) setSettings(updated);
-    } catch (error) {
-      toast.error('Falha na sincronização. Tente reconectar a pasta.');
+    } catch (error: any) {
+      toast.error(error.message || 'Falha na sincronização. Tente reconectar a pasta.');
     }
   };
 
@@ -429,6 +493,25 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     <div className="text-xs text-slate-500">Use o sistema como um app nativo</div>
                   </div>
                 </button>
+              )}
+
+              {isInstallable === false && (
+                <div className="p-3 text-left border border-slate-200 rounded-xl bg-white/50">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 bg-slate-100 rounded-lg text-slate-400">
+                      <Download size={18} />
+                    </div>
+                    <div className="flex-1">
+                      <div className="text-sm font-semibold text-slate-600">Instalação Indisponível</div>
+                      <div className="text-xs text-slate-500 mt-1">
+                        {window.matchMedia('(display-mode: standalone)').matches 
+                          ? 'O aplicativo já está instalado neste dispositivo.'
+                          : 'A instalação não está disponível no momento. Verifique se:\n• Você está usando Chrome ou Edge\n• O site está em HTTPS\n• O manifesto está válido\n• Tente recarregar a página'
+                        }
+                      </div>
+                    </div>
+                  </div>
+                </div>
               )}
 
               <div className="space-y-3">

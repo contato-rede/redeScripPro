@@ -47,6 +47,9 @@ function updateServiceWorkerVersion() {
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
   return {
+    // IMPORTANTE: Configurar base para GitHub Pages
+    // Substitua '/redeScripPro/' pelo nome exato do seu repositório
+    base: '/redeScripPro/',
     plugins: [
       react(), 
       tailwindcss(),

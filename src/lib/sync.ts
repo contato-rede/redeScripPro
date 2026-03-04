@@ -24,7 +24,12 @@ async function validateDirectory(directoryHandle: FileSystemDirectoryHandle | un
     }
 
     // Tentar acessar o diretório para confirmar que está disponível
-    await directoryHandle.resolve({} as FileSystemHandle);
+    // Verificamos tentando obter um handle de arquivo de teste
+    try {
+      await (directoryHandle as any).getFileHandle('.test', { create: false });
+    } catch (e) {
+      // Arquivo não existe é esperado, mas se der erro de permissão, vai cair no catch externo
+    }
     
     return { valid: true };
   } catch (error) {

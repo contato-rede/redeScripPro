@@ -376,7 +376,7 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
         <div className="grid grid-cols-1 gap-6">
           {questions.map((q, idx) => (
             <div key={q.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <label className="block text-sm font-semibold text-slate-700 mb-2">
+              <label className="block text-sm font-semibold text-slate-700 mb-2 whitespace-pre-wrap break-words">
                 {idx + 1}. {q.text || '(Pergunta sem texto)'}
               </label>
               <textarea

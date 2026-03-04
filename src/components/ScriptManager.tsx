@@ -49,29 +49,34 @@ const SortableQuestion: React.FC<SortableItemProps> = ({ question, onRemove, onU
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex items-center gap-3 p-4 bg-white border border-slate-200 rounded-xl mb-2 group",
+        "flex items-start gap-3 p-4 bg-white border border-slate-200 rounded-xl mb-2 group",
         isDragging && "shadow-lg border-indigo-300 ring-2 ring-indigo-100"
       )}
     >
       <button
         {...attributes}
         {...listeners}
-        className="cursor-grab active:cursor-grabbing p-1 text-slate-400 hover:text-slate-600"
+        className="cursor-grab active:cursor-grabbing p-1 text-slate-400 hover:text-slate-600 mt-1"
       >
         <GripVertical size={20} />
       </button>
       
-      <input
-        type="text"
+      <textarea
         value={question.text}
         onChange={(e) => onUpdate(question.id, e.target.value)}
-        className="flex-1 bg-transparent border-none focus:ring-0 text-slate-700 placeholder:text-slate-300"
+        className="flex-1 bg-transparent border-none focus:ring-0 text-slate-700 placeholder:text-slate-300 resize-none min-h-[24px] max-h-[120px]"
         placeholder="Digite sua pergunta aqui..."
+        rows={1}
+        onInput={(e) => {
+          const target = e.target as HTMLTextAreaElement;
+          target.style.height = 'auto';
+          target.style.height = Math.min(target.scrollHeight, 120) + 'px';
+        }}
       />
 
       <button
         onClick={() => onRemove(question.id)}
-        className="p-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+        className="p-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity mt-1"
       >
         <Trash2 size={18} />
       </button>

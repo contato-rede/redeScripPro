@@ -1,5 +1,5 @@
-// Build: 2026-03-04T13:55:49.238Z
-const CACHE_NAME = 'rspro-v-1772632549238';
+// Build: 2026-03-04T16:52:39.002Z
+const CACHE_NAME = 'rspro-v-1772643159002';
 const ASSETS_TO_CACHE = [
   '/redeScripPro/',
   '/redeScripPro/index.html',

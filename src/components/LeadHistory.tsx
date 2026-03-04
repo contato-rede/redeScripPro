@@ -135,13 +135,49 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
           return;
         }
 
+        // Buscar leads existentes para verificação de duplicatas
+        const existingLeads = await db.leads.toArray();
+        
+        // Função para normalizar texto para comparação
+        const normalizeText = (text: string): string => {
+          return text.toLowerCase().trim().replace(/\s+/g, ' ');
+        };
+        
+        // Função para verificar se é duplicata
+        const isDuplicate = (nomeRetifica: string, telefone: string): boolean => {
+          const normalizedNome = normalizeText(nomeRetifica);
+          const normalizedTelefone = normalizeText(telefone);
+          
+          return existingLeads.some(lead => {
+            const nomeMatch = normalizeText(lead.nomeRetifica) === normalizedNome;
+            const telefoneMatch = normalizedTelefone && normalizeText(lead.telefone) === normalizedTelefone;
+            // Considera duplicata se nome for igual OU telefone for igual (quando ambos existem)
+            return nomeMatch || (normalizedTelefone && telefoneMatch);
+          });
+        };
+
         // Validação de UF e Cidade antes da importação
         const invalidRows: { row: number; errors: string[] }[] = [];
+        const duplicateRows: { row: number; nomeRetifica: string; telefone: string }[] = [];
         
-        const newLeads: Lead[] = jsonData.map((row, index) => {
+        const newLeads: Lead[] = [];
+        
+        jsonData.forEach((row, index) => {
           const uf = (row['UF'] || '').substring(0, 2).toUpperCase();
           const cidade = toCamelCase(row['Cidade'] || '');
+          const nomeRetifica = toCamelCase(row['Nome Retífica'] || 'Sem Nome');
+          const telefone = row['Telefone'] || '';
           const rowErrors: string[] = [];
+          
+          // Verificação de duplicata
+          if (isDuplicate(nomeRetifica, telefone)) {
+            duplicateRows.push({ 
+              row: index + 2, 
+              nomeRetifica,
+              telefone 
+            });
+            return; // Pula este lead
+          }
           
           // Validação de UF
           if (!uf) {
@@ -161,13 +197,13 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
             invalidRows.push({ row: index + 2, errors: rowErrors }); // +2 porque linha 1 é cabeçalho
           }
           
-          return {
+          newLeads.push({
             createdAt: new Date(),
-            nomeRetifica: toCamelCase(row['Nome Retífica'] || 'Sem Nome'),
+            nomeRetifica,
             responsavel: toCamelCase(row['Responsável'] || 'Não Informado'),
             uf: uf || 'XX', // Valor padrão se inválido
             cidade: cidade || 'Não Informada',
-            telefone: row['Telefone'] || '',
+            telefone,
             status: 'Pendente',
             compraEstimada: Number(row['Compra Estimada']) || 0,
             planilhaEnviada: 'Não',
@@ -176,10 +212,29 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
             motivoPerda: '',
             observacao: row['Observação'] || '',
             answers: []
-          };
+          });
         });
 
-        // Se houver erros, mostra alerta mas permite importar os válidos
+        // Mostrar mensagem sobre duplicatas ignoradas
+        if (duplicateRows.length > 0) {
+          const duplicateDetails = duplicateRows.slice(0, 5).map(r => 
+            `Linha ${r.row}: ${r.nomeRetifica}${r.telefone ? ` (${r.telefone})` : ''}`
+          ).join('\n');
+          
+          const moreDuplicates = duplicateRows.length > 5 
+            ? `\n... e mais ${duplicateRows.length - 5} duplicatas` 
+            : '';
+          
+          toast.info(
+            `${duplicateRows.length} lead(s) ignorado(s) por serem duplicatas.`,
+            {
+              description: `${duplicateDetails}${moreDuplicates}`,
+              duration: 8000,
+            }
+          );
+        }
+
+        // Se houver erros de validação, mostra alerta mas permite importar os válidos
         if (invalidRows.length > 0) {
           const errorDetails = invalidRows.slice(0, 5).map(r => 
             `Linha ${r.row}: ${r.errors.join(', ')}`
@@ -196,8 +251,17 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
           );
         }
 
-        await db.leads.bulkAdd(newLeads);
-        toast.success(`${newLeads.length} leads importados! ${invalidRows.length > 0 ? `(${invalidRows.length} com dados de localização inválidos)` : ''}`);
+        if (newLeads.length > 0) {
+          await db.leads.bulkAdd(newLeads);
+          toast.success(
+            `${newLeads.length} leads importados com sucesso!` +
+            `${duplicateRows.length > 0 ? ` (${duplicateRows.length} duplicatas ignoradas)` : ''}` +
+            `${invalidRows.length > 0 ? ` (${invalidRows.length} com dados de localização inválidos)` : ''}`
+          );
+        } else if (duplicateRows.length > 0) {
+          toast.warning('Nenhum lead novo para importar. Todos os registros já existem no sistema.');
+        }
+        
         loadData();
         if (fileInputRef.current) fileInputRef.current.value = '';
       } catch (error) {

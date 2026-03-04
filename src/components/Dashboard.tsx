@@ -108,10 +108,10 @@ export function Dashboard() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Conversion Chart */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm min-h-[400px]">
           <h3 className="text-lg font-bold text-slate-900 mb-6">Taxa de Conversão (Sim vs Não)</h3>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[300px] w-full min-h-[300px]">
+            <ResponsiveContainer width="100%" height="100%" minWidth={200} minHeight={250}>
               <PieChart>
                 <Pie
                   data={conversionData}
@@ -134,10 +134,10 @@ export function Dashboard() {
         </div>
 
         {/* Funnel Chart */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm min-h-[400px]">
           <h3 className="text-lg font-bold text-slate-900 mb-6">Distribuição por Status</h3>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[300px] w-full min-h-[300px]">
+            <ResponsiveContainer width="100%" height="100%" minWidth={200} minHeight={250}>
               <BarChart data={funnelData} layout="vertical" margin={{ left: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
                 <XAxis type="number" hide />
@@ -159,10 +159,10 @@ export function Dashboard() {
         </div>
 
         {/* Volume Chart */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2">
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm lg:col-span-2 min-h-[400px]">
           <h3 className="text-lg font-bold text-slate-900 mb-6">Volume Financeiro em Negociação</h3>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
+          <div className="h-[300px] w-full min-h-[300px]">
+            <ResponsiveContainer width="100%" height="100%" minWidth={200} minHeight={250}>
               <BarChart data={volumeData}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="name" />

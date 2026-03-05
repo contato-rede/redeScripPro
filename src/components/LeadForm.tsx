@@ -156,22 +156,22 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
   if (loading) return <div className="p-8 text-center text-slate-500">Preparando formulário...</div>;
 
   return (
-    <form onSubmit={handleSubmit} className="max-w-5xl mx-auto p-6 space-y-8">
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+    <form onSubmit={handleSubmit} className="max-w-5xl mx-auto p-4 space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Basic Info */}
-        <div className="space-y-6">
-          <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-            <User className="text-indigo-600" size={20} />
+        <div className="space-y-3">
+          <h3 className="text-base font-semibold text-slate-900 flex items-center gap-1.5">
+            <User className="text-indigo-600" size={16} />
             Informações do Lead
           </h3>
           
-          <div className="grid grid-cols-1 gap-4">
+          <div className="grid grid-cols-1 gap-2">
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="block text-xs font-medium text-slate-600 mb-1">
                 Nome da Retífica <span className="text-red-500">*</span>
               </label>
               <div className="relative group">
-                <Building2 className="input-icon" size={18} />
+                <Building2 className="input-icon" size={16} />
                 <input
                   type="text"
                   placeholder="Digite o nome da retífica"
@@ -192,15 +192,15 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
                   }}
                 />
               </div>
-              {errors.nomeRetifica && <p className="text-red-500 text-xs mt-1.5">{errors.nomeRetifica}</p>}
+              {errors.nomeRetifica && <p className="text-red-500 text-xs mt-1">{errors.nomeRetifica}</p>}
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="block text-xs font-medium text-slate-600 mb-1">
                 Responsável <span className="text-red-500">*</span>
               </label>
               <div className="relative group">
-                <User className="input-icon" size={18} />
+                <User className="input-icon" size={16} />
                 <input
                   type="text"
                   placeholder="Digite o nome do responsável"
@@ -221,10 +221,10 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
                   }}
                 />
               </div>
-              {errors.responsavel && <p className="text-red-500 text-xs mt-1.5">{errors.responsavel}</p>}
+              {errors.responsavel && <p className="text-red-500 text-xs mt-1">{errors.responsavel}</p>}
             </div>
 
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-3 gap-2">
               <div className="col-span-1">
                 <UFSelector
                   value={formData.uf || ''}
@@ -250,11 +250,11 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">
+              <label className="block text-xs font-medium text-slate-600 mb-1">
                 Telefone <span className="text-red-500">*</span>
               </label>
               <div className="relative group">
-                <Phone className="input-icon" size={18} />
+                <Phone className="input-icon" size={16} />
                 <input
                   type="tel"
                   placeholder="(00) 00000-0000"
@@ -269,22 +269,22 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
                   }}
                 />
               </div>
-              {errors.telefone && <p className="text-red-500 text-xs mt-1.5">{errors.telefone}</p>}
+              {errors.telefone && <p className="text-red-500 text-xs mt-1">{errors.telefone}</p>}
             </div>
           </div>
         </div>
 
         {/* Sales Info */}
-        <div className="space-y-6">
-          <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-            <DollarSign className="text-indigo-600" size={20} />
+        <div className="space-y-3">
+          <h3 className="text-base font-semibold text-slate-900 flex items-center gap-1.5">
+            <DollarSign className="text-indigo-600" size={16} />
             Dados Comerciais
           </h3>
 
-          <div className="grid grid-cols-1 gap-4">
-            <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Status</label>
                 <select
                   className="input-field"
                   value={formData.status}
@@ -296,7 +296,7 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Compra Estimada (R$)</label>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Compra Estimada (R$)</label>
                 <input
                   type="text"
                   className="input-field"
@@ -309,17 +309,17 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Planilha Enviada?</label>
-                <div className="flex gap-2">
+                <label className="block text-xs font-medium text-slate-600 mb-1">Planilha Enviada?</label>
+                <div className="flex gap-1.5">
                   {['Sim', 'Não'].map(opt => (
                     <button
                       key={opt}
                       type="button"
                       onClick={() => setFormData({ ...formData, planilhaEnviada: opt as 'Sim' | 'Não' })}
                       className={cn(
-                        "flex-1 py-2 rounded-lg border transition-all",
+                        "flex-1 py-1.5 text-sm rounded-md border transition-all",
                         formData.planilhaEnviada === opt 
                           ? "bg-indigo-600 text-white border-indigo-600" 
                           : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
@@ -331,15 +331,15 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Fechou?</label>
-                <div className="flex gap-2">
+                <label className="block text-xs font-medium text-slate-600 mb-1">Fechou?</label>
+                <div className="flex gap-1.5">
                   {['Sim', 'Não'].map(opt => (
                     <button
                       key={opt}
                       type="button"
                       onClick={() => setFormData({ ...formData, fechou: opt as 'Sim' | 'Não' })}
                       className={cn(
-                        "flex-1 py-2 rounded-lg border transition-all",
+                        "flex-1 py-1.5 text-sm rounded-md border transition-all",
                         formData.fechou === opt 
                           ? (opt === 'Sim' ? "bg-green-600 text-white border-green-600" : "bg-red-600 text-white border-red-600")
                           : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
@@ -353,9 +353,9 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Live Agendada</label>
+              <label className="block text-xs font-medium text-slate-600 mb-1">Live Agendada</label>
               <div className="relative group">
-                <Calendar className="input-icon" size={18} />
+                <Calendar className="input-icon" size={16} />
                 <input
                   type="datetime-local"
                   className="input-field-icon"
@@ -368,20 +368,20 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
       </div>
 
       {/* Script Questions */}
-      <div className="space-y-6 pt-6 border-t border-slate-200">
-        <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-          <FileText className="text-indigo-600" size={20} />
+      <div className="space-y-3 pt-4 border-t border-slate-200">
+        <h3 className="text-base font-semibold text-slate-900 flex items-center gap-1.5">
+          <FileText className="text-indigo-600" size={16} />
           Script de Perguntas
         </h3>
-        <div className="grid grid-cols-1 gap-6">
+        <div className="grid grid-cols-1 gap-3">
           {questions.map((q, idx) => (
-            <div key={q.id} className="bg-slate-50 p-4 rounded-xl border border-slate-200">
-              <label className="block text-sm font-semibold text-slate-700 mb-2 whitespace-pre-wrap break-words">
+            <div key={q.id} className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+              <label className="block text-xs font-semibold text-slate-700 mb-1.5 whitespace-pre-wrap break-words">
                 {idx + 1}. {q.text || '(Pergunta sem texto)'}
               </label>
               <textarea
                 rows={2}
-                className="input-field resize-none"
+                className="input-field resize-none text-sm"
                 placeholder="Resposta do cliente..."
                 value={formData.answers?.find(a => a.questionId === q.id)?.answer || ''}
                 onChange={e => handleAnswerChange(q.id, e.target.value)}
@@ -389,45 +389,45 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
             </div>
           ))}
           {questions.length === 0 && (
-            <p className="text-slate-500 italic">Nenhuma pergunta configurada no script.</p>
+            <p className="text-slate-500 italic text-sm">Nenhuma pergunta configurada no script.</p>
           )}
         </div>
       </div>
 
       {/* Observations */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-slate-200">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-200">
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Motivo da Perda (se houver)</label>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Motivo da Perda (se houver)</label>
           <textarea
-            rows={4}
-            className="input-field"
+            rows={3}
+            className="input-field text-sm"
             value={formData.motivoPerda}
             onChange={e => setFormData({ ...formData, motivoPerda: e.target.value })}
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-slate-700 mb-1">Observações Gerais</label>
+          <label className="block text-xs font-medium text-slate-600 mb-1">Observações Gerais</label>
           <textarea
-            rows={4}
-            className="input-field"
+            rows={3}
+            className="input-field text-sm"
             value={formData.observacao}
             onChange={e => setFormData({ ...formData, observacao: e.target.value })}
           />
         </div>
       </div>
 
-      <div className="flex justify-end gap-4 pt-8">
+      <div className="flex justify-end gap-3 pt-6">
         {onCancel && (
           <button 
             type="button" 
             onClick={onCancel}
-            className="btn-secondary px-12 py-4 text-lg"
+            className="btn-secondary px-8 py-2.5 text-base"
           >
             Cancelar
           </button>
         )}
-        <button type="submit" className="btn-primary flex items-center gap-2 px-12 py-4 text-lg">
-          <Save size={24} />
+        <button type="submit" className="btn-primary flex items-center gap-2 px-8 py-2.5 text-base">
+          <Save size={18} />
           {initialData ? 'Atualizar Lead' : 'Salvar Lead'}
         </button>
       </div>

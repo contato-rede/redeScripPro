@@ -1,7 +1,7 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import {defineConfig, loadEnv} from 'vite';
+import { defineConfig, loadEnv } from 'vite';
 import fs from 'fs';
 
 // Plugin para atualizar a versão do service worker automaticamente
@@ -12,17 +12,17 @@ function updateServiceWorkerVersion() {
       const swPath = path.resolve(__dirname, 'public/sw.js');
       if (fs.existsSync(swPath)) {
         let content = fs.readFileSync(swPath, 'utf-8');
-        
+
         // Gerar timestamp único para a versão
         const timestamp = Date.now();
         const version = `v-${timestamp}`;
-        
+
         // Atualizar o CACHE_NAME
         content = content.replace(
           /const CACHE_NAME = 'rspro-v[^']*';/,
           `const CACHE_NAME = 'rspro-${version}';`
         );
-        
+
         // Adicionar comentário com a data de build
         const buildDate = new Date().toISOString();
         if (!content.includes('// Build:')) {
@@ -36,7 +36,7 @@ function updateServiceWorkerVersion() {
             `// Build: ${buildDate}`
           );
         }
-        
+
         fs.writeFileSync(swPath, content);
         console.log(`\x1b[32m✓ Service Worker atualizado para versão: rspro-${version}\x1b[0m`);
       }
@@ -44,14 +44,14 @@ function updateServiceWorkerVersion() {
   };
 }
 
-export default defineConfig(({mode}) => {
+export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
     // IMPORTANTE: Configurar base para GitHub Pages
-    // Substitua '/redeScripPro/' pelo nome exato do seu repositório
-    base: '/redeScripPro/',
+    // Usar './' para caminhos relativos, o que evita erros de 404 em subdiretórios
+    base: './',
     plugins: [
-      react(), 
+      react(),
       tailwindcss(),
       updateServiceWorkerVersion()
     ],

@@ -1,10 +1,10 @@
 // Build: 2026-03-04T17:32:42.772Z
 const CACHE_NAME = 'rspro-v-1772645562772';
 const ASSETS_TO_CACHE = [
-  '/redeScripPro/',
-  '/redeScripPro/index.html',
-  '/redeScripPro/manifest.json',
-  '/redeScripPro/RedeScriptPro_Icon.png'
+  './',
+  'index.html',
+  'manifest.json',
+  'RedeScriptPro_Icon.png'
 ];
 
 self.addEventListener('install', (event) => {

@@ -66,23 +66,23 @@ const SortableQuestion: React.FC<SortableItemProps> = ({ question, onRemove, onU
       ref={setNodeRef}
       style={style}
       className={cn(
-        "flex items-start gap-3 p-4 bg-white border border-slate-200 rounded-xl mb-2 group",
+        "flex items-start gap-2 p-3 bg-white border border-slate-200 rounded-lg mb-1.5 group",
         isDragging && "shadow-lg border-indigo-300 ring-2 ring-indigo-100"
       )}
     >
       <button
         {...attributes}
         {...listeners}
-        className="cursor-grab active:cursor-grabbing p-1 text-slate-400 hover:text-slate-600 mt-1"
+        className="cursor-grab active:cursor-grabbing p-1 text-slate-400 hover:text-slate-600 mt-0.5"
       >
-        <GripVertical size={20} />
+        <GripVertical size={18} />
       </button>
       
       <textarea
         ref={textareaRef}
         value={question.text}
         onChange={(e) => onUpdate(question.id, e.target.value)}
-        className="flex-1 bg-transparent border-none focus:ring-0 text-slate-700 placeholder:text-slate-300 resize-none min-h-[24px] max-h-[120px] overflow-hidden"
+        className="flex-1 bg-transparent border-none focus:ring-0 text-slate-700 text-sm placeholder:text-slate-300 resize-none min-h-[20px] max-h-[120px] overflow-hidden"
         placeholder="Digite sua pergunta aqui..."
         rows={1}
         onInput={handleInput}
@@ -90,9 +90,9 @@ const SortableQuestion: React.FC<SortableItemProps> = ({ question, onRemove, onU
 
       <button
         onClick={() => onRemove(question.id)}
-        className="p-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity mt-1"
+        className="p-1.5 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5"
       >
-        <Trash2 size={18} />
+        <Trash2 size={16} />
       </button>
     </div>
   );
@@ -211,22 +211,22 @@ export function ScriptManager() {
     await db.statuses.update(id, updates);
   }
 
-  if (loading) return <div className="p-8 text-center text-slate-500">Carregando configurações...</div>;
+  if (loading) return <div className="p-6 text-center text-slate-500 text-sm">Carregando configurações...</div>;
 
   return (
-    <div className="max-w-4xl mx-auto p-6 space-y-12">
+    <div className="max-w-4xl mx-auto p-4 space-y-8">
       {/* Questions Section */}
       <section>
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <Settings2 className="text-indigo-600" size={24} />
+            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <Settings2 className="text-indigo-600" size={20} />
               Script de Vendas
             </h2>
-            <p className="text-slate-500">Defina as perguntas que serão feitas aos leads.</p>
+            <p className="text-xs text-slate-500">Defina as perguntas que serão feitas aos leads.</p>
           </div>
-          <button onClick={addQuestion} className="btn-primary flex items-center gap-2">
-            <Plus size={20} />
+          <button onClick={addQuestion} className="btn-primary flex items-center gap-1.5 text-xs py-1.5 px-3">
+            <Plus size={16} />
             Nova Pergunta
           </button>
         </div>
@@ -252,59 +252,59 @@ export function ScriptManager() {
         </DndContext>
 
         {questions.length === 0 && (
-          <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400">
+          <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-sm">
             Nenhuma pergunta cadastrada.
           </div>
         )}
       </section>
 
       {/* Statuses Section */}
-      <section className="pt-12 border-t border-slate-200">
-        <div className="flex items-center justify-between mb-8">
+      <section className="pt-8 border-t border-slate-200">
+        <div className="flex items-center justify-between mb-4">
           <div>
-            <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-              <Tag className="text-indigo-600" size={24} />
+            <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              <Tag className="text-indigo-600" size={20} />
               Status de Lead
             </h2>
-            <p className="text-slate-500">Gerencie as opções de status disponíveis para os leads.</p>
+            <p className="text-xs text-slate-500">Gerencie as opções de status disponíveis para os leads.</p>
           </div>
-          <button onClick={addStatus} className="btn-secondary flex items-center gap-2">
-            <Plus size={20} />
+          <button onClick={addStatus} className="btn-secondary flex items-center gap-1.5 text-xs py-1.5 px-3">
+            <Plus size={16} />
             Novo Status
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {statuses.map((status) => (
             <div 
               key={status.id}
-              className="flex items-center gap-3 p-4 bg-white border border-slate-200 rounded-xl group"
+              className="flex items-center gap-2 p-3 bg-white border border-slate-200 rounded-lg group"
             >
               <input
                 type="color"
                 value={status.color}
                 onChange={(e) => updateStatus(status.id, { color: e.target.value })}
-                className="w-8 h-8 rounded cursor-pointer border-none bg-transparent"
+                className="w-7 h-7 rounded cursor-pointer border-none bg-transparent"
               />
               <input
                 type="text"
                 value={status.label}
                 onChange={(e) => updateStatus(status.id, { label: e.target.value })}
-                className="flex-1 bg-transparent border-none focus:ring-0 text-slate-700 font-medium"
+                className="flex-1 bg-transparent border-none focus:ring-0 text-slate-700 font-medium text-sm"
                 placeholder="Nome do status..."
               />
               <button
                 onClick={() => removeStatus(status.id)}
-                className="p-2 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                className="p-1.5 text-slate-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
               >
-                <Trash2 size={18} />
+                <Trash2 size={16} />
               </button>
             </div>
           ))}
         </div>
 
         {statuses.length === 0 && (
-          <div className="text-center py-12 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400">
+          <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 text-sm">
             Nenhum status cadastrado.
           </div>
         )}

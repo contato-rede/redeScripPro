@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../db';
 import { Lead, LeadStatus } from '../types';
-import { 
-  PieChart, Pie, Cell, 
+import {
+  PieChart, Pie, Cell,
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   LineChart, Line
 } from 'recharts';
@@ -13,6 +13,11 @@ export function Dashboard() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [statuses, setStatuses] = useState<LeadStatus[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     async function loadData() {
@@ -27,7 +32,7 @@ export function Dashboard() {
     loadData();
   }, []);
 
-  if (loading) return <div className="p-8 text-center text-slate-500">Carregando indicadores...</div>;
+  if (loading || !isMounted) return <div className="p-8 text-center text-slate-500">Carregando indicadores...</div>;
 
   // 1. Conversion Rate Data
   const closedCount = leads.filter(l => l.fechou === 'Sim').length;
@@ -127,7 +132,7 @@ export function Dashboard() {
                   ))}
                 </Pie>
                 <Tooltip />
-                <Legend verticalAlign="bottom" height={30} fontSize={11}/>
+                <Legend verticalAlign="bottom" height={30} fontSize={11} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -141,13 +146,13 @@ export function Dashboard() {
               <BarChart data={funnelData} layout="vertical" margin={{ left: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
                 <XAxis type="number" hide />
-                <YAxis 
-                  dataKey="name" 
-                  type="category" 
-                  width={90} 
+                <YAxis
+                  dataKey="name"
+                  type="category"
+                  width={90}
                   tick={{ fontSize: 11 }}
                 />
-                <Tooltip cursor={{fill: 'transparent'}} />
+                <Tooltip cursor={{ fill: 'transparent' }} />
                 <Bar dataKey="count" radius={[0, 3, 3, 0]}>
                   {funnelData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
@@ -167,7 +172,7 @@ export function Dashboard() {
                 <CartesianGrid strokeDasharray="3 3" vertical={false} />
                 <XAxis dataKey="name" tick={{ fontSize: 11 }} />
                 <YAxis tickFormatter={(value) => `R$ ${value / 1000}k`} tick={{ fontSize: 11 }} />
-                <Tooltip 
+                <Tooltip
                   formatter={(value: number) => formatCurrency(value)}
                 />
                 <Bar dataKey="value" fill="#6366f1" radius={[3, 3, 0, 0]} />

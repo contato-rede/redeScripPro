@@ -1,5 +1,5 @@
-// Build: 2026-03-04T17:32:42.772Z
-const CACHE_NAME = 'rspro-v-1772645562772';
+// Build: 2026-03-05T15:49:49.253Z
+const CACHE_NAME = 'rspro-v-1772725789253';
 const ASSETS_TO_CACHE = [
   './',
   'index.html',

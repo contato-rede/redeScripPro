@@ -43,7 +43,7 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
     async function init() {
       const q = await db.questions.orderBy('order').toArray();
       const s = await db.statuses.toArray();
-      
+
       let currentStatuses = s;
       if (s.length === 0) {
         try {
@@ -56,7 +56,7 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
       } else {
         setStatuses(s);
       }
-      
+
       setQuestions(q);
 
       if (initialData) {
@@ -78,7 +78,7 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
           answers: q.map(question => ({ questionId: question.id, answer: '' }))
         }));
       }
-      
+
       setLoading(false);
     }
     init();
@@ -91,7 +91,7 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
     if (!formData.uf?.trim()) newErrors.uf = 'UF é obrigatória';
     if (!formData.cidade?.trim()) newErrors.cidade = 'Cidade é obrigatória';
     if (!formData.telefone?.trim()) newErrors.telefone = 'Telefone é obrigatório';
-    
+
     // Validação de UF e Cidade
     if (formData.uf && formData.cidade) {
       const validation = validateUFCidade(formData.uf, formData.cidade);
@@ -99,7 +99,7 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
         newErrors.cidade = validation.error || 'Cidade inválida para a UF selecionada';
       }
     }
-    
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -128,15 +128,14 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
 
     const lead: Lead = {
       ...formattedData as Lead,
-      createdAt: initialData?.createdAt || new Date(),
+      id: initialData?.id || crypto.randomUUID(),
+      createdAt: initialData?.createdAt || Date.now(),
+      updatedAt: Date.now(),
+      liveAgendada: formData.liveAgendada ? new Date(formData.liveAgendada).getTime() : null
     };
 
-    if (initialData?.id) {
-      await db.leads.put(lead);
-    } else {
-      await db.leads.add(lead);
-    }
-    
+    await db.leads.put(lead);
+
     // Auto-sync to local Excel if workspace is set and accessible
     const settings = await db.settings.get('main');
     if (settings?.directoryHandle && settings?.autoSync) {
@@ -164,7 +163,7 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
             <User className="text-indigo-600" size={16} />
             Informações do Lead
           </h3>
-          
+
           <div className="grid grid-cols-1 gap-2">
             <div>
               <label className="block text-xs font-medium text-slate-600 mb-1">
@@ -320,8 +319,8 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
                       onClick={() => setFormData({ ...formData, planilhaEnviada: opt as 'Sim' | 'Não' })}
                       className={cn(
                         "flex-1 py-1.5 text-sm rounded-md border transition-all",
-                        formData.planilhaEnviada === opt 
-                          ? "bg-indigo-600 text-white border-indigo-600" 
+                        formData.planilhaEnviada === opt
+                          ? "bg-indigo-600 text-white border-indigo-600"
                           : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
                       )}
                     >
@@ -340,7 +339,7 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
                       onClick={() => setFormData({ ...formData, fechou: opt as 'Sim' | 'Não' })}
                       className={cn(
                         "flex-1 py-1.5 text-sm rounded-md border transition-all",
-                        formData.fechou === opt 
+                        formData.fechou === opt
                           ? (opt === 'Sim' ? "bg-green-600 text-white border-green-600" : "bg-red-600 text-white border-red-600")
                           : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
                       )}
@@ -357,9 +356,8 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
               <div className="relative group">
                 <Calendar className="input-icon" size={16} />
                 <input
-                  type="datetime-local"
-                  className="input-field-icon"
-                  onChange={e => setFormData({ ...formData, liveAgendada: e.target.value ? new Date(e.target.value) : null })}
+                  value={formData.liveAgendada ? new Date(formData.liveAgendada).toISOString().slice(0, 16) : ''}
+                  onChange={e => setFormData({ ...formData, liveAgendada: e.target.value ? new Date(e.target.value).getTime() : null })}
                 />
               </div>
             </div>
@@ -418,8 +416,8 @@ export function LeadForm({ onSuccess, initialData, onCancel }: LeadFormProps) {
 
       <div className="flex justify-end gap-3 pt-6">
         {onCancel && (
-          <button 
-            type="button" 
+          <button
+            type="button"
             onClick={onCancel}
             className="btn-secondary px-8 py-2.5 text-base"
           >

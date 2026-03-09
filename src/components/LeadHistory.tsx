@@ -18,9 +18,9 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
   const [statuses, setStatuses] = useState<LeadStatus[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  const [leadToDelete, setLeadToDelete] = useState<number | null>(null);
+  const [leadToDelete, setLeadToDelete] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
-  
+
   // Filter States
   const [filterStatus, setFilterStatus] = useState('all');
   const [filterResult, setFilterResult] = useState('all');
@@ -50,17 +50,17 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
   };
 
   const filteredLeads = leads.filter(l => {
-    const matchesSearch = 
+    const matchesSearch =
       l.nomeRetifica.toLowerCase().includes(searchTerm.toLowerCase()) ||
       l.responsavel.toLowerCase().includes(searchTerm.toLowerCase()) ||
       l.cidade.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     const matchesStatus = filterStatus === 'all' || l.status === filterStatus;
     const matchesResult = filterResult === 'all' || l.fechou === filterResult;
-    
+
     let matchesPeriod = true;
     const leadDate = new Date(l.createdAt);
-    
+
     if (filterPeriod === 'today') {
       matchesPeriod = isToday(leadDate);
     } else if (filterPeriod === 'week') {
@@ -71,7 +71,7 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
         end: endOfDay(new Date(endDate))
       });
     }
-    
+
     return matchesSearch && matchesStatus && matchesResult && matchesPeriod;
   });
 
@@ -137,17 +137,17 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
 
         // Buscar leads existentes para verificação de duplicatas
         const existingLeads = await db.leads.toArray();
-        
+
         // Função para normalizar texto para comparação
         const normalizeText = (text: string): string => {
           return text.toLowerCase().trim().replace(/\s+/g, ' ');
         };
-        
+
         // Função para verificar se é duplicata
         const isDuplicate = (nomeRetifica: string, telefone: string): boolean => {
           const normalizedNome = normalizeText(nomeRetifica);
           const normalizedTelefone = normalizeText(telefone);
-          
+
           return existingLeads.some(lead => {
             const nomeMatch = normalizeText(lead.nomeRetifica) === normalizedNome;
             const telefoneMatch = normalizedTelefone && normalizeText(lead.telefone) === normalizedTelefone;
@@ -159,49 +159,51 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
         // Validação de UF e Cidade antes da importação
         const invalidRows: { row: number; errors: string[] }[] = [];
         const duplicateRows: { row: number; nomeRetifica: string; telefone: string }[] = [];
-        
+
         const newLeads: Lead[] = [];
-        
+
         jsonData.forEach((row, index) => {
           const uf = (row['UF'] || '').substring(0, 2).toUpperCase();
           const cidade = toCamelCase(row['Cidade'] || '');
           const nomeRetifica = toCamelCase(row['Nome Retífica'] || 'Sem Nome');
           const telefone = row['Telefone'] || '';
           const rowErrors: string[] = [];
-          
+
           // Verificação de duplicata
           if (isDuplicate(nomeRetifica, telefone)) {
-            duplicateRows.push({ 
-              row: index + 2, 
+            duplicateRows.push({
+              row: index + 2,
               nomeRetifica,
-              telefone 
+              telefone
             });
             return; // Pula este lead
           }
-          
+
           // Validação de UF
           if (!uf) {
             rowErrors.push('UF não informada');
           } else if (!isValidUF(uf)) {
             rowErrors.push(`UF "${uf}" inválida`);
           }
-          
+
           // Validação de Cidade
           if (!cidade) {
             rowErrors.push('Cidade não informada');
           } else if (uf && !validateUFCidade(uf, cidade).valid) {
             rowErrors.push(`Cidade "${cidade}" não encontrada para a UF ${uf}`);
           }
-          
+
           if (rowErrors.length > 0) {
             invalidRows.push({ row: index + 2, errors: rowErrors }); // +2 porque linha 1 é cabeçalho
           }
-          
+
           newLeads.push({
-            createdAt: new Date(),
+            id: crypto.randomUUID(),
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
             nomeRetifica,
             responsavel: toCamelCase(row['Responsável'] || 'Não Informado'),
-            uf: uf || 'XX', // Valor padrão se inválido
+            uf: uf || 'XX',
             cidade: cidade || 'Não Informada',
             telefone,
             status: 'Pendente',
@@ -217,14 +219,14 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
 
         // Mostrar mensagem sobre duplicatas ignoradas
         if (duplicateRows.length > 0) {
-          const duplicateDetails = duplicateRows.slice(0, 5).map(r => 
+          const duplicateDetails = duplicateRows.slice(0, 5).map(r =>
             `Linha ${r.row}: ${r.nomeRetifica}${r.telefone ? ` (${r.telefone})` : ''}`
           ).join('\n');
-          
-          const moreDuplicates = duplicateRows.length > 5 
-            ? `\n... e mais ${duplicateRows.length - 5} duplicatas` 
+
+          const moreDuplicates = duplicateRows.length > 5
+            ? `\n... e mais ${duplicateRows.length - 5} duplicatas`
             : '';
-          
+
           toast.info(
             `${duplicateRows.length} lead(s) ignorado(s) por serem duplicatas.`,
             {
@@ -236,12 +238,12 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
 
         // Se houver erros de validação, mostra alerta mas permite importar os válidos
         if (invalidRows.length > 0) {
-          const errorDetails = invalidRows.slice(0, 5).map(r => 
+          const errorDetails = invalidRows.slice(0, 5).map(r =>
             `Linha ${r.row}: ${r.errors.join(', ')}`
           ).join('\n');
-          
+
           const moreErrors = invalidRows.length > 5 ? `\n... e mais ${invalidRows.length - 5} linhas com erros` : '';
-          
+
           toast.warning(
             `${invalidRows.length} linha(s) com UF/Cidade inválidas. Dados serão importados com valores padrão.`,
             {
@@ -261,7 +263,7 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
         } else if (duplicateRows.length > 0) {
           toast.warning('Nenhum lead novo para importar. Todos os registros já existem no sistema.');
         }
-        
+
         loadData();
         if (fileInputRef.current) fileInputRef.current.value = '';
       } catch (error) {
@@ -289,7 +291,7 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
       <AnimatePresence>
         {leadToDelete !== null && (
           <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -306,13 +308,13 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
                   </p>
                 </div>
                 <div className="flex gap-2 pt-2">
-                  <button 
+                  <button
                     onClick={() => setLeadToDelete(null)}
                     className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600 text-sm font-medium hover:bg-slate-50 transition-colors"
                   >
                     Cancelar
                   </button>
-                  <button 
+                  <button
                     onClick={confirmDelete}
                     className="flex-1 px-3 py-1.5 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-colors shadow-md shadow-red-200"
                   >
@@ -341,8 +343,8 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
               onChange={e => setSearchTerm(e.target.value)}
             />
           </div>
-          
-          <button 
+
+          <button
             onClick={() => setShowFilters(!showFilters)}
             className={cn(
               "btn-secondary flex items-center gap-1.5 text-xs py-1.5 px-2.5",
@@ -360,12 +362,12 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
           <button onClick={() => fileInputRef.current?.click()} className="btn-secondary flex items-center gap-1.5 text-xs py-1.5 px-2.5">
             <FileUp size={14} />
             Importar
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              onChange={handleImport} 
-              accept=".xlsx, .xls" 
-              className="hidden" 
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleImport}
+              accept=".xlsx, .xls"
+              className="hidden"
             />
           </button>
           <button onClick={exportToExcel} className="btn-primary flex items-center gap-1.5 text-xs py-1.5 px-2.5">
@@ -387,7 +389,7 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
             <div className="bg-white border border-slate-200 rounded-xl p-4 grid grid-cols-1 md:grid-cols-4 gap-4 shadow-sm">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Período</label>
-                <select 
+                <select
                   className="input-field text-sm"
                   value={filterPeriod}
                   onChange={e => setFilterPeriod(e.target.value)}
@@ -403,8 +405,8 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
                 <div className="md:col-span-1 flex gap-2">
                   <div className="flex-1">
                     <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Início</label>
-                    <input 
-                      type="date" 
+                    <input
+                      type="date"
                       className="input-field text-sm"
                       value={startDate}
                       onChange={e => setStartDate(e.target.value)}
@@ -412,8 +414,8 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
                   </div>
                   <div className="flex-1">
                     <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Fim</label>
-                    <input 
-                      type="date" 
+                    <input
+                      type="date"
                       className="input-field text-sm"
                       value={endDate}
                       onChange={e => setEndDate(e.target.value)}
@@ -424,7 +426,7 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
 
               <div>
                 <label className="block text-xs font-semibold text-slate-500 uppercase mb-1.5">Status</label>
-                <select 
+                <select
                   className="input-field text-sm"
                   value={filterStatus}
                   onChange={e => setFilterStatus(e.target.value)}
@@ -445,8 +447,8 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
                       onClick={() => setFilterResult(opt)}
                       className={cn(
                         "flex-1 py-1.5 rounded-md border text-xs font-medium transition-all",
-                        filterResult === opt 
-                          ? "bg-indigo-600 text-white border-indigo-600" 
+                        filterResult === opt
+                          ? "bg-indigo-600 text-white border-indigo-600"
                           : "bg-white text-slate-600 border-slate-200 hover:border-indigo-300"
                       )}
                     >
@@ -457,7 +459,7 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
               </div>
 
               <div className="md:col-span-4 flex justify-end pt-1">
-                <button 
+                <button
                   onClick={() => {
                     setFilterStatus('all');
                     setFilterResult('all');
@@ -501,11 +503,11 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
                   {lead.cidade} - {lead.uf}
                 </td>
                 <td className="p-3">
-                  <span 
+                  <span
                     className="px-2 py-0.5 rounded-full text-xs font-medium"
-                    style={{ 
-                      backgroundColor: `${getStatusColor(lead.status)}20`, 
-                      color: getStatusColor(lead.status) 
+                    style={{
+                      backgroundColor: `${getStatusColor(lead.status)}20`,
+                      color: getStatusColor(lead.status)
                     }}
                   >
                     {lead.status}
@@ -524,14 +526,14 @@ export function LeadHistory({ onEdit }: LeadHistoryProps) {
                 </td>
                 <td className="p-3">
                   <div className="flex items-center gap-1">
-                    <button 
+                    <button
                       onClick={() => onEdit(lead)}
                       className="p-1.5 text-slate-400 hover:text-indigo-600 transition-colors"
                       title="Editar Lead / Ligar Novamente"
                     >
                       <ExternalLink size={16} />
                     </button>
-                    <button 
+                    <button
                       onClick={() => setLeadToDelete(lead.id!)}
                       className="p-1.5 text-slate-400 hover:text-red-500 transition-colors"
                       title="Excluir Lead"

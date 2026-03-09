@@ -1,0 +1,39 @@
+# Plano de Implementação: Sincronização Bidirecional (SSoT)
+
+Este plano altera a filosofia do sistema: o arquivo Excel passa a ser o banco de dados central (Fonte da Verdade) e os navegadores são clientes que sincronizam com ele.
+
+## Mudanças Propostas
+
+### 1. Modelos e Banco de Dados
+#### [MODIFY] [types.ts](file:///c:/Users/Robson-PC/.antigravity/projetos/redeSriptPro/redeScripPro/src/types.ts)
+- Adicionar `updatedAt: number` (timestamp) em [Lead](file:///c:/Users/Robson-PC/.antigravity/projetos/redeSriptPro/redeScripPro/src/types.ts#18-35), [Question](file:///c:/Users/Robson-PC/.antigravity/projetos/redeSriptPro/redeScripPro/src/types.ts#7-12), [LeadStatus](file:///c:/Users/Robson-PC/.antigravity/projetos/redeSriptPro/redeScripPro/src/types.ts#1-6).
+- Mudar [id](file:///c:/Users/Robson-PC/.antigravity/projetos/redeSriptPro/redeScripPro/src/lib/sync.ts#15-48) de [Lead](file:///c:/Users/Robson-PC/.antigravity/projetos/redeSriptPro/redeScripPro/src/types.ts#18-35) para `string`.
+
+#### [MODIFY] [src/db/index.ts](file:///c:/Users/Robson-PC/.antigravity/projetos/redeSriptPro/redeScripPro/src/db/index.ts)
+- Incrementar versão do Dexie (v3).
+- Mudar `leads` de `++id` para [id](file:///c:/Users/Robson-PC/.antigravity/projetos/redeSriptPro/redeScripPro/src/lib/sync.ts#15-48) (chave manual string).
+
+### 2. Motor de Sincronização
+#### [MODIFY] [src/lib/sync.ts](file:///c:/Users/Robson-PC/.antigravity/projetos/redeSriptPro/redeScripPro/src/lib/sync.ts)
+- Implementar `syncEverything()`:
+    1. Lê Excel (se existir).
+    2. Lê IndexedDB.
+    3. Para cada item:
+        - Se o ID é novo em um lado -> Adiciona no outro.
+        - Se o ID existe em ambos -> Compara `updatedAt`, o maior vence.
+    4. Grava o resultado unificado de volta nos dois lugares.
+
+### 3. Fluxo de Usuário
+#### [MODIFY] [src/components/SettingsModal.tsx](file:///c:/Users/Robson-PC/.antigravity/projetos/redeSriptPro/redeScripPro/src/components/SettingsModal.tsx)
+- Na primeira conexão de pasta, forçar uma sincronização de "Pull" total do Excel antes de permitir salvar novos dados locais.
+
+#### [MODIFY] [src/App.tsx](file:///c:/Users/Robson-PC/.antigravity/projetos/redeSriptPro/redeScripPro/src/App.tsx)
+- O intervalo de background passará a chamar `syncEverything()`, garantindo que o Computador A receba mudanças do B automaticamente.
+
+## Plano de Verificação
+
+### Verificação Automatizada
+- Testar a lógica de merge com mock de dados (Computador A editando Lead 1, Computador B criando Lead 2).
+
+### Verificação Manual
+- Simular "Computador C": Abrir a aplicação em uma janela anônima, conectar à mesma pasta e verificar se os leads do Computador A aparecem sem precisar clicar em "Importar" manualmente (ou logo após a conexão).

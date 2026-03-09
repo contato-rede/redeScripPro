@@ -29,14 +29,13 @@ export default function App() {
       const settings = await db.settings.get('main');
       if (settings?.autoSync && settings.directoryHandle) {
         const intervalMs = (settings.syncInterval || 5) * 60 * 1000;
-        
+
         intervalId = setInterval(async () => {
           try {
-            // Check permission first
             const status = await (settings.directoryHandle as any).queryPermission({ mode: 'readwrite' });
             if (status === 'granted') {
-              await syncToLocalExcel(settings.directoryHandle);
-              console.log('Background sync completed');
+              await syncEverything(settings.directoryHandle);
+              console.log('Total bidirectional sync completed');
             }
           } catch (error) {
             console.error('Background sync failed:', error);
@@ -79,7 +78,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 flex flex-col">
       <Toaster position="top-right" richColors />
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
-      
+
       {/* Header */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8">
@@ -95,7 +94,7 @@ export default function App() {
                 RS<span className="text-indigo-600">P</span>
               </h1>
             </div>
-            
+
             <nav className="hidden md:flex space-x-0.5">
               {tabs.map((tab) => (
                 <button
@@ -115,7 +114,7 @@ export default function App() {
             </nav>
 
             <div className="flex items-center gap-2 shrink-0">
-              <button 
+              <button
                 onClick={() => setIsSettingsOpen(true)}
                 className="p-1.5 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors"
               >
@@ -166,8 +165,8 @@ export default function App() {
               <Agenda onEdit={handleEditLead} />
             )}
             {activeTab === 'new-lead' && (
-              <LeadForm 
-                onSuccess={handleFormSuccess} 
+              <LeadForm
+                onSuccess={handleFormSuccess}
                 initialData={editingLead}
                 onCancel={editingLead ? handleFormCancel : undefined}
               />

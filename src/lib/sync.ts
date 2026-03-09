@@ -1,6 +1,5 @@
 import * as XLSX from 'xlsx';
 import { db } from '../db';
-import { format, parse } from 'date-fns';
 import { Lead, Question, LeadStatus, AppSettings } from '../types';
 
 const FILE_NAME = 'RedeScript_Dados.xlsx';
@@ -21,71 +20,120 @@ async function validateDirectory(directoryHandle: FileSystemDirectoryHandle | un
   }
 
   try {
-    // Verificar permissões de escrita
     const status = await (directoryHandle as any).queryPermission({ mode: 'readwrite' });
     if (status !== 'granted') {
-      // Tentar solicitar permissão
       const newStatus = await (directoryHandle as any).requestPermission({ mode: 'readwrite' });
       if (newStatus !== 'granted') {
-        return { valid: false, error: 'Permissão de escrita negada. Por favor, selecione a pasta novamente.' };
+        return { valid: false, error: 'Permissões de escrita negada.' };
       }
     }
-
-    // Tentar acessar o diretório para confirmar que está disponível
-    // Verificamos tentando obter um handle de arquivo de teste
-    try {
-      await (directoryHandle as any).getFileHandle('.test', { create: false });
-    } catch (e) {
-      // Arquivo não existe é esperado, mas se der erro de permissão, vai cair no catch externo
-    }
-    
     return { valid: true };
   } catch (error) {
-    console.error('Erro ao validar diretório:', error);
-    return { valid: false, error: 'Pasta de trabalho não está mais acessível. Por favor, selecione uma nova pasta nas configurações.' };
+    return { valid: false, error: 'Pasta de trabalho não acessível.' };
   }
 }
 
 /**
- * Exporta todos os dados do sistema para Excel com múltiplas abas
+ * Função principal de Sincronização Total (Bidirecional)
  */
-export async function syncToLocalExcel(directoryHandle: FileSystemDirectoryHandle | undefined) {
-  // Validação obrigatória do diretório
+export async function syncEverything(directoryHandle: FileSystemDirectoryHandle | undefined) {
   const validation = await validateDirectory(directoryHandle);
-  if (!validation.valid) {
-    throw new Error(validation.error);
-  }
+  if (!validation.valid) throw new Error(validation.error);
 
-  // Garantir que directoryHandle não é undefined após validação
   const handle = directoryHandle as FileSystemDirectoryHandle;
+  const now = Date.now();
 
   try {
-    // 1. Buscar todos os dados do sistema
-    const [leads, questions, statuses, settings] = await Promise.all([
-      db.leads.toArray(),
-      db.questions.orderBy('order').toArray(),
-      db.statuses.toArray(),
-      db.settings.get('main')
-    ]);
+    // 1. Carregar dados atuais do IndexedDB
+    const localLeads = await db.leads.toArray();
+    const localQuestions = await db.questions.toArray();
+    const localStatuses = await db.statuses.toArray();
+    const localSettings = await db.settings.get('main');
 
-    // 2. Criar workbook
+    // 2. Tentar ler dados do arquivo Excel (se existir)
+    let excelData: any = {};
+    try {
+      const fileHandle = await handle.getFileHandle(FILE_NAME);
+      const file = await fileHandle.getFile();
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+
+      const sheetToArr = (name: string) => XLSX.utils.sheet_to_json(workbook.Sheets[name] || {});
+      excelData = {
+        leads: sheetToArr(SHEET_NAMES.LEADS),
+        questions: sheetToArr(SHEET_NAMES.SCRIPT),
+        statuses: sheetToArr(SHEET_NAMES.STATUSES),
+        settings: sheetToArr(SHEET_NAMES.SETTINGS)
+      };
+    } catch (e) {
+      console.log('Arquivo Excel não encontrado ou novo. Criando primeira versão.');
+    }
+
+    // 3. Processar Leads (Merge Inteligente)
+    const remoteLeads: Lead[] = (excelData.leads || []).map((row: any) => ({
+      id: String(row['ID']),
+      createdAt: Number(row['CreatedAt'] || row['Data'] || now),
+      updatedAt: Number(row['UpdatedAt'] || now),
+      nomeRetifica: String(row['Nome Retifica'] || ''),
+      responsavel: String(row['Responsavel'] || ''),
+      uf: String(row['UF'] || ''),
+      cidade: String(row['Cidade'] || ''),
+      telefone: String(row['Telefone'] || ''),
+      status: String(row['Status'] || 'Pendente'),
+      compraEstimada: Number(row['Compra Estimada'] || 0),
+      planilhaEnviada: row['Planilha Enviada'] === 'Sim' ? 'Sim' : 'Não',
+      liveAgendada: row['Live Agendada'] ? Number(row['Live Agendada']) : null,
+      fechou: row['Fechou'] === 'Sim' ? 'Sim' : 'Não',
+      motivoPerda: String(row['Motivo Perda'] || ''),
+      observacao: String(row['Observacao'] || ''),
+      answers: JSON.parse(row['Respostas JSON'] || '[]')
+    }));
+
+    const finalLeads = mergeItems(localLeads, remoteLeads);
+
+    // 4. Processar Script e Status
+    const remoteQuestions: Question[] = (excelData.questions || []).map((row: any) => ({
+      id: String(row['ID']),
+      order: Number(row['Ordem'] || 0),
+      text: String(row['Pergunta'] || ''),
+      updatedAt: Number(row['UpdatedAt'] || now)
+    }));
+    const finalQuestions = mergeItems(localQuestions, remoteQuestions);
+
+    const remoteStatuses: LeadStatus[] = (excelData.statuses || []).map((row: any) => ({
+      id: String(row['ID']),
+      label: String(row['Label'] || ''),
+      color: String(row['Cor'] || '#6366f1'),
+      updatedAt: Number(row['UpdatedAt'] || now)
+    }));
+    const finalStatuses = mergeItems(localStatuses, remoteStatuses);
+
+    // 5. Atualizar Banco de Dados Local (IndexedDB)
+    await db.transaction('rw', [db.leads, db.questions, db.statuses, db.settings], async () => {
+      await Promise.all([
+        db.leads.bulkPut(finalLeads),
+        db.questions.bulkPut(finalQuestions),
+        db.statuses.bulkPut(finalStatuses),
+        db.settings.update('main', { lastSync: now })
+      ]);
+    });
+
+    // 6. Gravar novo Excel (Fonte Unificada)
     const wb = XLSX.utils.book_new();
 
-    // 2.1 Aba Metadata (informações do sistema)
-    const metadataData = [{
-      'Versao': '1.0',
-      'Data Exportacao': format(new Date(), 'dd/MM/yyyy HH:mm:ss'),
-      'Total Leads': leads.length,
-      'Total Perguntas': questions.length,
-      'Total Status': statuses.length
-    }];
-    const wsMetadata = XLSX.utils.json_to_sheet(metadataData);
-    XLSX.utils.book_append_sheet(wb, wsMetadata, SHEET_NAMES.METADATA);
+    // Metadata
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{
+      'Versao': '2.0',
+      'Data Sincronia': new Date().toISOString(),
+      'Sincronizacao': 'Bidirecional'
+    }]), SHEET_NAMES.METADATA);
 
-    // 2.2 Aba Leads
-    const leadsData = leads.map(l => ({
+    // Leads
+    const exportLeads = finalLeads.map(l => ({
       'ID': l.id,
-      'Data': format(new Date(l.createdAt), 'dd/MM/yyyy HH:mm'),
+      'CreatedAt': l.createdAt,
+      'UpdatedAt': l.updatedAt,
+      'Data': new Date(l.createdAt).toLocaleString(),
       'Nome Retifica': l.nomeRetifica,
       'Responsavel': l.responsavel,
       'UF': l.uf,
@@ -94,282 +142,88 @@ export async function syncToLocalExcel(directoryHandle: FileSystemDirectoryHandl
       'Status': l.status,
       'Compra Estimada': l.compraEstimada,
       'Planilha Enviada': l.planilhaEnviada,
-      'Live Agendada': l.liveAgendada ? format(new Date(l.liveAgendada), 'dd/MM/yyyy HH:mm') : null,
+      'Live Agendada': l.liveAgendada,
       'Fechou': l.fechou,
       'Motivo Perda': l.motivoPerda,
       'Observacao': l.observacao,
-      'Respostas JSON': JSON.stringify(l.answers || [])
+      'Respostas JSON': JSON.stringify(l.answers)
     }));
-    const wsLeads = XLSX.utils.json_to_sheet(leadsData);
-    XLSX.utils.book_append_sheet(wb, wsLeads, SHEET_NAMES.LEADS);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(exportLeads), SHEET_NAMES.LEADS);
 
-    // 2.3 Aba Script (Perguntas)
-    const scriptData = questions.map(q => ({
-      'ID': q.id,
-      'Ordem': q.order,
-      'Pergunta': q.text
-    }));
-    const wsScript = XLSX.utils.json_to_sheet(scriptData);
-    XLSX.utils.book_append_sheet(wb, wsScript, SHEET_NAMES.SCRIPT);
+    // Script & Status
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(finalQuestions.map(q => ({
+      'ID': q.id, 'Ordem': q.order, 'Pergunta': q.text, 'UpdatedAt': q.updatedAt
+    }))), SHEET_NAMES.SCRIPT);
 
-    // 2.4 Aba Status
-    const statusData = statuses.map(s => ({
-      'ID': s.id,
-      'Label': s.label,
-      'Cor': s.color
-    }));
-    const wsStatus = XLSX.utils.json_to_sheet(statusData);
-    XLSX.utils.book_append_sheet(wb, wsStatus, SHEET_NAMES.STATUSES);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(finalStatuses.map(s => ({
+      'ID': s.id, 'Label': s.label, 'Cor': s.color, 'UpdatedAt': s.updatedAt
+    }))), SHEET_NAMES.STATUSES);
 
-    // 2.5 Aba Configuracoes (sem directoryHandle que não é serializável)
-    const settingsData = settings ? [{
-      'ID': settings.id,
-      'Auto Sync': settings.autoSync ? 'Sim' : 'Nao',
-      'Intervalo Sync (min)': settings.syncInterval || 5,
-      'Ultima Sync': settings.lastSync ? format(new Date(settings.lastSync), 'dd/MM/yyyy HH:mm:ss') : null
-    }] : [];
-    const wsSettings = XLSX.utils.json_to_sheet(settingsData);
-    XLSX.utils.book_append_sheet(wb, wsSettings, SHEET_NAMES.SETTINGS);
+    // Settings (sem directoryHandle)
+    if (localSettings) {
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{
+        'ID': localSettings.id,
+        'Auto Sync': localSettings.autoSync ? 'Sim' : 'Nao',
+        'Intervalo Sync (min)': localSettings.syncInterval || 5,
+        'Ultima Sync': now
+      }]), SHEET_NAMES.SETTINGS);
+    }
 
-    // 3. Generate Buffer
     const excelBuffer = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
-    
-    // 4. Save to Local File System
     const fileHandle = await handle.getFileHandle(FILE_NAME, { create: true });
     const writable = await fileHandle.createWritable();
     await writable.write(excelBuffer);
     await writable.close();
-    
-    // 5. Update last sync
-    await db.settings.update('main', { lastSync: new Date() });
-    
+
     return {
       success: true,
       stats: {
-        leads: leads.length,
-        questions: questions.length,
-        statuses: statuses.length
-      }
+        leads: finalLeads.length,
+        questions: finalQuestions.length,
+        statuses: finalStatuses.length
+      },
+      leads: { imported: finalLeads.length, skipped: 0 }, // Para compatibilidade com importFromLocalExcel
+      questions: { imported: finalQuestions.length, skipped: 0 },
+      statuses: { imported: finalStatuses.length, skipped: 0 },
+      settings: { imported: true }
     };
   } catch (error) {
-    console.error('Erro na sincronização local:', error);
+    console.error('Falha na sincronização TOTAL:', error);
     throw error;
   }
 }
 
 /**
- * Importa todos os dados do sistema a partir do Excel
- * Retorna estatísticas sobre o que foi importado
+ * Lógica de Merge: Compara dois arrays de itens pelo ID e updatedAt
  */
-export async function importFromLocalExcel(
-  directoryHandle: FileSystemDirectoryHandle | undefined,
-  options: { 
-    mergeStrategy?: 'replace' | 'merge' | 'skip';
-    importLeads?: boolean;
-    importScript?: boolean;
-    importStatuses?: boolean;
-    importSettings?: boolean;
-  } = {}
-): Promise<{
-  leads: { imported: number; skipped: number };
-  questions: { imported: number; skipped: number };
-  statuses: { imported: number; skipped: number };
-  settings: { imported: boolean };
-}> {
-  const {
-    mergeStrategy = 'merge',
-    importLeads = true,
-    importScript = true,
-    importStatuses = true,
-    importSettings = true
-  } = options;
+function mergeItems<T extends { id: string; updatedAt?: number }>(local: T[], remote: T[]): T[] {
+  const mergedMap = new Map<string, T>();
 
-  // Validação obrigatória do diretório
-  const validation = await validateDirectory(directoryHandle);
-  if (!validation.valid) {
-    throw new Error(validation.error);
-  }
+  // Primeiro adiciona todos os locais
+  local.forEach(item => mergedMap.set(item.id, item));
 
-  const handle = directoryHandle as FileSystemDirectoryHandle;
-  const stats = {
-    leads: { imported: 0, skipped: 0 },
-    questions: { imported: 0, skipped: 0 },
-    statuses: { imported: 0, skipped: 0 },
-    settings: { imported: false }
-  };
+  // Compara com remotos
+  remote.forEach(remoteItem => {
+    const localItem = mergedMap.get(remoteItem.id);
 
-  try {
-    const fileHandle = await handle.getFileHandle(FILE_NAME);
-    const file = await fileHandle.getFile();
-    const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array' });
+    if (!localItem) {
+      // Item novo no Excel, adiciona no local
+      mergedMap.set(remoteItem.id, remoteItem);
+    } else {
+      // Item existe em ambos, o que tiver o maior updatedAt vence
+      const localTime = localItem.updatedAt || 0;
+      const remoteTime = remoteItem.updatedAt || 0;
 
-    // Helper para converter sheet para JSON
-    const sheetToJson = (sheetName: string): any[] => {
-      const sheet = workbook.Sheets[sheetName];
-      return sheet ? XLSX.utils.sheet_to_json(sheet) : [];
-    };
-
-    // Importar Script (Perguntas)
-    if (importScript) {
-      const scriptData = sheetToJson(SHEET_NAMES.SCRIPT);
-      const questions: Question[] = scriptData.map((row: any) => ({
-        id: String(row['ID'] || crypto.randomUUID()),
-        order: Number(row['Ordem'] || 0),
-        text: String(row['Pergunta'] || '')
-      }));
-
-      if (questions.length > 0) {
-        if (mergeStrategy === 'replace') {
-          await db.questions.clear();
-        }
-        
-        for (const q of questions) {
-          const exists = await db.questions.get(q.id);
-          if (!exists) {
-            await db.questions.add(q);
-            stats.questions.imported++;
-          } else if (mergeStrategy === 'merge') {
-            await db.questions.update(q.id, { text: q.text, order: q.order });
-            stats.questions.imported++;
-          } else {
-            stats.questions.skipped++;
-          }
-        }
+      if (remoteTime > localTime) {
+        mergedMap.set(remoteItem.id, remoteItem);
       }
     }
+  });
 
-    // Importar Status
-    if (importStatuses) {
-      const statusData = sheetToJson(SHEET_NAMES.STATUSES);
-      const statuses: LeadStatus[] = statusData.map((row: any) => ({
-        id: String(row['ID'] || crypto.randomUUID()),
-        label: String(row['Label'] || ''),
-        color: String(row['Cor'] || '#6366f1')
-      }));
-
-      if (statuses.length > 0) {
-        if (mergeStrategy === 'replace') {
-          await db.statuses.clear();
-        }
-
-        for (const s of statuses) {
-          const exists = await db.statuses.get(s.id);
-          if (!exists) {
-            await db.statuses.add(s);
-            stats.statuses.imported++;
-          } else if (mergeStrategy === 'merge') {
-            await db.statuses.update(s.id, { label: s.label, color: s.color });
-            stats.statuses.imported++;
-          } else {
-            stats.statuses.skipped++;
-          }
-        }
-      }
-    }
-
-    // Importar Leads
-    if (importLeads) {
-      const leadsData = sheetToJson(SHEET_NAMES.LEADS);
-      const existingLeads = await db.leads.toArray();
-      
-      // Helper para verificar duplicatas
-      const isDuplicate = (nomeRetifica: string, telefone: string): boolean => {
-        const normalizedNome = nomeRetifica.toLowerCase().trim();
-        const normalizedTelefone = telefone.toLowerCase().trim();
-        return existingLeads.some(l => 
-          l.nomeRetifica.toLowerCase().trim() === normalizedNome ||
-          (normalizedTelefone && l.telefone.toLowerCase().trim() === normalizedTelefone)
-        );
-      };
-
-      for (const row of leadsData) {
-        const lead: Lead = {
-          id: row['ID'] ? Number(row['ID']) : undefined,
-          createdAt: parseDate(String(row['Data'] || new Date())),
-          nomeRetifica: String(row['Nome Retifica'] || ''),
-          responsavel: String(row['Responsavel'] || ''),
-          uf: String(row['UF'] || ''),
-          cidade: String(row['Cidade'] || ''),
-          telefone: String(row['Telefone'] || ''),
-          status: String(row['Status'] || 'Pendente'),
-          compraEstimada: Number(row['Compra Estimada'] || 0),
-          planilhaEnviada: (row['Planilha Enviada'] === 'Sim' ? 'Sim' : 'Não') as 'Sim' | 'Não',
-          liveAgendada: row['Live Agendada'] ? parseDate(String(row['Live Agendada'])) : null,
-          fechou: (row['Fechou'] === 'Sim' ? 'Sim' : 'Não') as 'Sim' | 'Não',
-          motivoPerda: String(row['Motivo Perda'] || ''),
-          observacao: String(row['Observacao'] || ''),
-          answers: parseAnswers(row['Respostas JSON'])
-        };
-
-        if (isDuplicate(lead.nomeRetifica, lead.telefone)) {
-          stats.leads.skipped++;
-          continue;
-        }
-
-        await db.leads.add(lead);
-        stats.leads.imported++;
-      }
-    }
-
-    // Importar Configurações
-    if (importSettings) {
-      const settingsData = sheetToJson(SHEET_NAMES.SETTINGS);
-      if (settingsData.length > 0) {
-        const row = settingsData[0];
-        const existingSettings = await db.settings.get('main');
-        
-        const newSettings: Partial<AppSettings> = {
-          autoSync: row['Auto Sync'] === 'Sim',
-          syncInterval: Number(row['Intervalo Sync (min)'] || 5)
-        };
-
-        if (existingSettings) {
-          await db.settings.update('main', newSettings);
-        } else {
-          await db.settings.add({
-            id: 'main',
-            ...newSettings
-          } as AppSettings);
-        }
-        stats.settings.imported = true;
-      }
-    }
-
-    // Atualizar last sync
-    await db.settings.update('main', { lastSync: new Date() });
-
-    return stats;
-  } catch (error) {
-    console.error('Erro ao importar do Excel local:', error);
-    throw error;
-  }
+  return Array.from(mergedMap.values());
 }
 
-// Helper para parse de datas
-function parseDate(dateStr: string): Date {
-  try {
-    // Tenta formato dd/MM/yyyy HH:mm
-    const parsed = parse(dateStr, 'dd/MM/yyyy HH:mm', new Date());
-    if (!isNaN(parsed.getTime())) return parsed;
-    
-    // Tenta formato dd/MM/yyyy HH:mm:ss
-    const parsedWithSeconds = parse(dateStr, 'dd/MM/yyyy HH:mm:ss', new Date());
-    if (!isNaN(parsedWithSeconds.getTime())) return parsedWithSeconds;
-    
-    return new Date();
-  } catch {
-    return new Date();
-  }
-}
+// Manter exportações antigas para compatibilidade de nomes se necessário, mapeando para o novo sync
+export const syncToLocalExcel = syncEverything;
+export const importFromLocalExcel = async (handle: any) => syncEverything(handle);
 
-// Helper para parse de respostas JSON
-function parseAnswers(jsonStr: string): any[] {
-  try {
-    if (!jsonStr || jsonStr === 'undefined') return [];
-    const parsed = JSON.parse(jsonStr);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}

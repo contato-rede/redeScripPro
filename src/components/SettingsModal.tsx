@@ -5,7 +5,7 @@ import { format } from 'date-fns';
 import { Trash2, Upload, RefreshCcw, X, ShieldAlert, FolderOpen, HardDrive, Smartphone, Download } from 'lucide-react';
 import { motion } from 'motion/react';
 import { DEFAULT_QUESTIONS, INITIAL_STATUSES } from '../constants';
-import { syncToLocalExcel, importFromLocalExcel } from '../lib/sync';
+import { syncEverything, syncToLocalExcel, importFromLocalExcel } from '../lib/sync';
 import { cn } from '../lib/utils';
 import { AppSettings } from '../types';
 
@@ -29,15 +29,12 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
-    // Verificar se o app já está instalado
     if (window.matchMedia('(display-mode: standalone)').matches) {
       setIsInstallable(false);
     }
 
-    // Timeout para determinar se o evento não foi disparado
     const timeout = setTimeout(() => {
       if (deferredPrompt === null && !window.matchMedia('(display-mode: standalone)').matches) {
-        // O evento pode não ter sido disparado ainda ou o app não é instalável
         setIsInstallable(false);
       }
     }, 2000);
@@ -53,7 +50,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       db.settings.get('main').then(s => {
         if (s) setSettings(s);
         else {
-          const initial: AppSettings = { id: 'main', autoSync: false };
+          const initial: AppSettings = { id: 'main', autoSync: false, updatedAt: Date.now() };
           db.settings.add(initial);
           setSettings(initial);
         }
@@ -82,17 +79,18 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       const handle = await (window as any).showDirectoryPicker({
         mode: 'readwrite'
       });
-      
-      const updated: AppSettings = { 
-        ...settings!, 
+
+      const updated: AppSettings = {
+        ...settings!,
         directoryHandle: handle,
-        autoSync: true 
+        autoSync: true,
+        updatedAt: Date.now()
       };
-      
+
       await db.settings.put(updated);
       setSettings(updated);
-      
-      toast.promise(syncToLocalExcel(handle), {
+
+      toast.promise(syncEverything(handle), {
         loading: 'Sincronizando dados iniciais...',
         success: 'Pasta de trabalho conectada e sincronizada!',
         error: 'Erro ao sincronizar com a pasta.'
@@ -109,14 +107,14 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       toast.error('Nenhuma pasta de trabalho selecionada. Por favor, selecione uma pasta primeiro.');
       return;
     }
-    
+
     try {
-      const result = await syncToLocalExcel(settings.directoryHandle);
+      const result = await syncEverything(settings.directoryHandle);
       toast.success(
         `Sincronização concluída!\n📋 ${result.stats.leads} leads\n📝 ${result.stats.questions} perguntas\n🏷️ ${result.stats.statuses} status`,
         { duration: 5000 }
       );
-      
+
       const updated = await db.settings.get('main');
       if (updated) setSettings(updated);
     } catch (error: any) {
@@ -125,37 +123,11 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   };
 
   const importFromExcel = async () => {
-    if (!settings?.directoryHandle) {
-      toast.error('Nenhuma pasta de trabalho selecionada. Por favor, selecione uma pasta primeiro.');
-      return;
-    }
-
-    const confirmed = confirm(
-      'Isso importará todos os dados do Excel (leads, script, status e configurações).\n\n' +
-      'Leads duplicados serão ignorados.\n\n' +
-      'Deseja continuar?'
-    );
-    
-    if (!confirmed) return;
-
     try {
-      const result = await importFromLocalExcel(settings.directoryHandle, {
-        mergeStrategy: 'merge',
-        importLeads: true,
-        importScript: true,
-        importStatuses: true,
-        importSettings: true
-      });
+      const result = await syncEverything(settings.directoryHandle);
 
-      const messages = [
-        `📋 Leads: ${result.leads.imported} importados, ${result.leads.skipped} ignorados`,
-        `📝 Perguntas: ${result.questions.imported} importadas, ${result.questions.skipped} ignoradas`,
-        `🏷️ Status: ${result.statuses.imported} importados, ${result.statuses.skipped} ignorados`,
-        result.settings.imported ? '⚙️ Configurações: importadas' : ''
-      ].filter(Boolean);
+      toast.success(`Sincronização concluída!\n📋 Leads: ${result.stats.leads}\n📝 Perguntas: ${result.stats.questions}\n🏷️ Status: ${result.stats.statuses}`, { duration: 6000 });
 
-      toast.success(`Importação concluída!\n${messages.join('\n')}`, { duration: 6000 });
-      
       const updated = await db.settings.get('main');
       if (updated) setSettings(updated);
     } catch (error: any) {
@@ -168,7 +140,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       const leads = await db.leads.toArray();
       const questions = await db.questions.toArray();
       const statuses = await db.statuses.toArray();
-      
+
       const backup = {
         version: '1.0',
         date: new Date().toISOString(),
@@ -203,7 +175,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
             await db.leads.clear();
             await db.questions.clear();
             await db.statuses.clear();
-            
+
             await db.leads.bulkAdd(backup.data.leads);
             await db.questions.bulkAdd(backup.data.questions);
             await db.statuses.bulkAdd(backup.data.statuses);
@@ -241,7 +213,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
@@ -260,10 +232,10 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <Smartphone size={16} />
               Aplicativo Instalável (PWA)
             </h3>
-            
+
             <div className="p-4 border border-indigo-100 rounded-xl bg-indigo-50/30 space-y-4">
               {deferredPrompt && (
-                <button 
+                <button
                   onClick={installApp}
                   className="w-full flex items-center gap-3 p-3 text-left border border-indigo-200 rounded-xl bg-white hover:bg-indigo-50 transition-all group shadow-sm"
                 >
@@ -286,7 +258,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                     <div className="flex-1">
                       <div className="text-sm font-semibold text-slate-600">Instalação Indisponível</div>
                       <div className="text-xs text-slate-500 mt-1">
-                        {window.matchMedia('(display-mode: standalone)').matches 
+                        {window.matchMedia('(display-mode: standalone)').matches
                           ? 'O aplicativo já está instalado neste dispositivo.'
                           : 'A instalação não está disponível no momento. Verifique se:\n• Você está usando Chrome ou Edge\n• O site está em HTTPS\n• O manifesto está válido\n• Tente recarregar a página'
                         }
@@ -313,8 +285,8 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <div className="flex-1">
                   <div className="text-sm font-semibold text-slate-900">Pasta de Trabalho</div>
                   <p className="text-xs text-slate-500">
-                    {settings?.directoryHandle 
-                      ? `Conectado: ${(settings.directoryHandle as any).name}` 
+                    {settings?.directoryHandle
+                      ? `Conectado: ${(settings.directoryHandle as any).name}`
                       : 'Nenhuma pasta selecionada'}
                   </p>
                 </div>
@@ -324,7 +296,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 <div className="space-y-3 pt-2 border-t border-slate-200">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-600 uppercase">Sincronização Automática</label>
-                    <button 
+                    <button
                       onClick={async () => {
                         const updated = { ...settings, autoSync: !settings.autoSync };
                         await db.settings.put(updated);
@@ -345,7 +317,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   {settings.autoSync && (
                     <div className="flex items-center justify-between gap-4">
                       <label className="text-xs text-slate-500">Intervalo (minutos)</label>
-                      <select 
+                      <select
                         className="bg-white border border-slate-200 rounded px-2 py-1 text-xs font-medium"
                         value={settings.syncInterval || 5}
                         onChange={async (e) => {
@@ -366,7 +338,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               )}
 
               <div className="flex gap-2">
-                <button 
+                <button
                   onClick={selectWorkspace}
                   className="flex-1 btn-secondary text-xs py-2"
                 >
@@ -374,7 +346,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </button>
                 {settings?.directoryHandle && (
                   <>
-                    <button 
+                    <button
                       onClick={importFromExcel}
                       className="flex-1 btn-secondary text-xs py-2 flex items-center justify-center gap-1"
                       title="Importar dados do Excel"
@@ -382,7 +354,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                       <Upload size={14} />
                       Importar
                     </button>
-                    <button 
+                    <button
                       onClick={forceSync}
                       className="flex-1 btn-primary text-xs py-2 flex items-center justify-center gap-1"
                       title="Exportar todos os dados para Excel"
@@ -393,7 +365,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                   </>
                 )}
               </div>
-              
+
               {settings?.lastSync && (
                 <p className="text-[10px] text-slate-400 text-center">
                   Última sincronização: {format(new Date(settings.lastSync), 'dd/MM HH:mm')}
@@ -406,25 +378,25 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           <div className="space-y-3">
             <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">Backup e Restauração</h3>
             <div className="grid grid-cols-2 gap-3">
-              <button 
+              <button
                 onClick={exportBackup}
                 className="flex flex-col items-center justify-center p-4 border border-slate-200 rounded-xl hover:border-indigo-300 hover:bg-indigo-50 transition-all gap-2"
               >
                 <Download size={24} className="text-indigo-600" />
                 <span className="text-sm font-medium text-slate-700">Exportar</span>
               </button>
-              <button 
+              <button
                 onClick={() => fileInputRef.current?.click()}
                 className="flex flex-col items-center justify-center p-4 border border-slate-200 rounded-xl hover:border-indigo-300 hover:bg-indigo-50 transition-all gap-2"
               >
                 <Upload size={24} className="text-indigo-600" />
                 <span className="text-sm font-medium text-slate-700">Importar</span>
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  onChange={importBackup} 
-                  accept=".json" 
-                  className="hidden" 
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={importBackup}
+                  accept=".json"
+                  className="hidden"
                 />
               </button>
             </div>
@@ -437,7 +409,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               Zona de Perigo
             </h3>
             <div className="space-y-2">
-              <button 
+              <button
                 onClick={clearLeads}
                 className="w-full flex items-center gap-3 p-3 text-left border border-red-100 rounded-xl hover:bg-red-50 transition-all group"
               >
@@ -450,7 +422,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </div>
               </button>
 
-              <button 
+              <button
                 onClick={resetToFactory}
                 className="w-full flex items-center gap-3 p-3 text-left border border-slate-200 rounded-xl hover:bg-slate-50 transition-all group"
               >
@@ -468,7 +440,7 @@ export function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
 
         <div className="p-6 bg-slate-50 border-t border-slate-100 text-center">
           <p className="text-xs text-slate-400">
-            Rede Script Pro v1.0.0<br/>
+            Rede Script Pro v1.0.0<br />
             Os dados são armazenados localmente no seu navegador.
           </p>
         </div>

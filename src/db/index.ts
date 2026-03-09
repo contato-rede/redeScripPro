@@ -9,11 +9,11 @@ export class AppDatabase extends Dexie {
 
   constructor() {
     super('CallScriptDB');
-    this.version(2).stores({
-      leads: '++id, createdAt, nomeRetifica, status',
-      questions: 'id, order',
-      statuses: 'id',
-      settings: 'id'
+    this.version(3).stores({
+      leads: 'id, createdAt, updatedAt, nomeRetifica, status',
+      questions: 'id, order, updatedAt',
+      statuses: 'id, updatedAt',
+      settings: 'id, updatedAt'
     });
   }
 }

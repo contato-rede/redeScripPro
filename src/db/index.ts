@@ -8,8 +8,8 @@ export class AppDatabase extends Dexie {
   settings!: Table<AppSettings>;
 
   constructor() {
-    super('CallScriptDB');
-    this.version(3).stores({
+    super('RedeScriptDB_V2');
+    this.version(1).stores({
       leads: 'id, createdAt, updatedAt, nomeRetifica, status',
       questions: 'id, order, updatedAt',
       statuses: 'id, updatedAt',

@@ -10,7 +10,7 @@ import { cn } from './lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { Toaster } from 'sonner';
 import { db } from './db';
-import { syncToLocalExcel } from './lib/sync';
+import { syncEverything, syncToLocalExcel } from './lib/sync';
 
 import { Lead } from './types';
 
@@ -184,7 +184,7 @@ export default function App() {
       {/* Footer */}
       <footer className="bg-white border-t border-slate-200 py-4">
         <div className="max-w-7xl mx-auto px-4 text-center text-slate-400 text-xs">
-          © 2024 CallScript Pro - Sistema de Gestão de Vendas
+          © 2024 Rede Script Pro - Sistema de Gestão de Vendas
         </div>
       </footer>
     </div>

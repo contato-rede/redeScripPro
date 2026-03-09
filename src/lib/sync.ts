@@ -58,54 +58,99 @@ export async function syncEverything(directoryHandle: FileSystemDirectoryHandle 
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array' });
 
-      const sheetToArr = (name: string) => XLSX.utils.sheet_to_json(workbook.Sheets[name] || {});
+      const findSheet = (possibleNames: string[]) => {
+        const name = workbook.SheetNames.find(n =>
+          possibleNames.some(p => n.toLowerCase().includes(p.toLowerCase()))
+        );
+        return name ? workbook.Sheets[name] : null;
+      };
+
+      const getSheetData = (possibleNames: string[]) => {
+        const name = workbook.SheetNames.find(n =>
+          possibleNames.some(p => n.toLowerCase().includes(p.toLowerCase()))
+        );
+        if (!name) return [];
+        return XLSX.utils.sheet_to_json(workbook.Sheets[name]);
+      };
+
       excelData = {
-        leads: sheetToArr(SHEET_NAMES.LEADS),
-        questions: sheetToArr(SHEET_NAMES.SCRIPT),
-        statuses: sheetToArr(SHEET_NAMES.STATUSES),
-        settings: sheetToArr(SHEET_NAMES.SETTINGS)
+        leads: getSheetData(['Leads', 'Sheet1']),
+        questions: getSheetData(['Script', 'Pergunta']),
+        statuses: getSheetData(['Status', 'Label']),
+        settings: getSheetData(['Config', 'Sett'])
       };
     } catch (e) {
       console.log('Arquivo Excel não encontrado ou novo. Criando primeira versão.');
     }
 
     // 3. Processar Leads (Merge Inteligente)
-    const remoteLeads: Lead[] = (excelData.leads || []).map((row: any) => ({
-      id: String(row['ID']),
-      createdAt: Number(row['CreatedAt'] || row['Data'] || now),
-      updatedAt: Number(row['UpdatedAt'] || now),
-      nomeRetifica: String(row['Nome Retifica'] || ''),
-      responsavel: String(row['Responsavel'] || ''),
-      uf: String(row['UF'] || ''),
-      cidade: String(row['Cidade'] || ''),
-      telefone: String(row['Telefone'] || ''),
-      status: String(row['Status'] || 'Pendente'),
-      compraEstimada: Number(row['Compra Estimada'] || 0),
-      planilhaEnviada: row['Planilha Enviada'] === 'Sim' ? 'Sim' : 'Não',
-      liveAgendada: row['Live Agendada'] ? Number(row['Live Agendada']) : null,
-      fechou: row['Fechou'] === 'Sim' ? 'Sim' : 'Não',
-      motivoPerda: String(row['Motivo Perda'] || ''),
-      observacao: String(row['Observacao'] || ''),
-      answers: JSON.parse(row['Respostas JSON'] || '[]')
-    }));
+    const remoteLeads: Lead[] = (excelData.leads || []).map((row: any) => {
+      const getVal = (keys: string[]) => {
+        const rowKeys = Object.keys(row);
+        const normalizedKeys = keys.map(k => k.toLowerCase().trim());
+        const foundKey = rowKeys.find(rk => normalizedKeys.includes(rk.toLowerCase().trim()));
+        return foundKey ? row[foundKey] : undefined;
+      };
+
+      const nome = String(getVal(['Nome Retifica', 'Nome Retífica', 'nomeRetifica', 'Cliente', 'Retífica']) || '');
+      const tel = String(getVal(['Telefone', 'telefone', 'Celular', 'Contato']) || '');
+
+      const fallbackId = `LEGACY_${nome.replace(/\s+/g, '')}_${tel.replace(/\D/g, '')}`;
+      let answers = [];
+      try {
+        const ansRaw = getVal(['Respostas JSON', 'answers', 'answers_json']);
+        if (ansRaw) answers = JSON.parse(String(ansRaw));
+      } catch (e) { }
+
+      return {
+        id: String(getVal(['ID', 'id', 'Id', 'uid']) || fallbackId),
+        createdAt: Number(getVal(['CreatedAt', 'createdAt', 'Data', 'Data Criacao']) || now),
+        updatedAt: Number(getVal(['UpdatedAt', 'updatedAt', 'Data Atualizacao']) || now),
+        nomeRetifica: nome,
+        responsavel: String(getVal(['Responsavel', 'Responsável', 'responsavel', 'Contato Principal']) || ''),
+        uf: String(getVal(['UF', 'uf', 'Estado']) || ''),
+        cidade: String(getVal(['Cidade', 'cidade', 'Município']) || ''),
+        telefone: tel,
+        status: String(getVal(['Status', 'status', 'Estágio']) || 'Pendente'),
+        compraEstimada: Number(getVal(['Compra Estimada', 'Compra Est.', 'compraEstimada', 'Volume']) || 0),
+        planilhaEnviada: getVal(['Planilha Enviada', 'planilhaEnviada', 'Enviado']) === 'Sim' ? 'Sim' : 'Não',
+        liveAgendada: getVal(['Live Agendada', 'liveAgendada', 'Agenda']) ? Number(getVal(['Live Agendada'])) : null,
+        fechou: getVal(['Fechou', 'fechou', 'Vendido']) === 'Sim' ? 'Sim' : 'Não',
+        motivoPerda: String(getVal(['Motivo Perda', 'Motivo da Perda', 'motivoPerda', 'Perda']) || ''),
+        observacao: String(getVal(['Observacao', 'Observação', 'observacao', 'Obs']) || ''),
+        answers
+      };
+    });
 
     const finalLeads = mergeItems(localLeads, remoteLeads);
 
     // 4. Processar Script e Status
-    const remoteQuestions: Question[] = (excelData.questions || []).map((row: any) => ({
-      id: String(row['ID']),
-      order: Number(row['Ordem'] || 0),
-      text: String(row['Pergunta'] || ''),
-      updatedAt: Number(row['UpdatedAt'] || now)
-    }));
+    const remoteQuestions: Question[] = (excelData.questions || []).map((row: any) => {
+      const getVal = (keys: string[]) => {
+        const key = Object.keys(row).find(k => keys.includes(k));
+        return key ? row[key] : undefined;
+      };
+      return {
+        id: String(getVal(['ID', 'id', 'Id']) || `q_${Math.random().toString(36).substr(2, 9)}`),
+        order: Number(getVal(['Ordem', 'ordem', 'Order']) || 0),
+        text: String(getVal(['Pergunta', 'text', 'text']) || ''),
+        updatedAt: Number(getVal(['UpdatedAt', 'updatedAt']) || now)
+      };
+    });
     const finalQuestions = mergeItems(localQuestions, remoteQuestions);
 
-    const remoteStatuses: LeadStatus[] = (excelData.statuses || []).map((row: any) => ({
-      id: String(row['ID']),
-      label: String(row['Label'] || ''),
-      color: String(row['Cor'] || '#6366f1'),
-      updatedAt: Number(row['UpdatedAt'] || now)
-    }));
+    const remoteStatuses: LeadStatus[] = (excelData.statuses || []).map((row: any) => {
+      const getVal = (keys: string[]) => {
+        const key = Object.keys(row).find(k => keys.includes(k));
+        return key ? row[key] : undefined;
+      };
+      return {
+        id: String(getVal(['ID', 'id', 'Id']) || `s_${Math.random().toString(36).substr(2, 9)}`),
+        label: String(getVal(['Label', 'label', 'Status']) || ''),
+        color: String(getVal(['Cor', 'color', 'color']) || '#6366f1'),
+        updatedAt: Number(getVal(['UpdatedAt', 'updatedAt']) || now)
+      };
+    });
     const finalStatuses = mergeItems(localStatuses, remoteStatuses);
 
     // 5. Atualizar Banco de Dados Local (IndexedDB)

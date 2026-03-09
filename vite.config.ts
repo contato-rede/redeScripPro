@@ -47,9 +47,8 @@ function updateServiceWorkerVersion() {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
   return {
-    // IMPORTANTE: Configurar base para GitHub Pages
-    // Usar './' para caminhos relativos, o que evita erros de 404 em subdiretórios
-    base: './',
+    // IMPORTANTE: Configurar base para GitHub Pages (nome do repositório)
+    base: '/redeScripPro/',
     plugins: [
       react(),
       tailwindcss(),
